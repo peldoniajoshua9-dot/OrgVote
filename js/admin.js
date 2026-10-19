@@ -5,8 +5,10 @@ async function load(){
   state=data;render();return true;
 }
 async function adminLogin(){
+  if(initError)return msg("aMsg","Setup error: "+esc(initError));
   adminId=$("aid").value.trim();
-  if(!await load()){adminId=null;
+  try{var ok=await load()}catch(e){lastError={message:e.message};ok=false}
+  if(!ok){adminId=null;
     const m=lastError&&lastError.message||"";
     return msg("aMsg",m.includes("unauthorized")?"Invalid Admin ID.":"Connection error: "+esc(m||"unknown")+(lastError&&lastError.code?" ("+esc(lastError.code)+")":""));}
   $("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");

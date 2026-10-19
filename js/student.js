@@ -1,5 +1,6 @@
 let user=null,pass=null;
 async function studentRegister(){
+  if(initError)return msg("sMsg","Setup error: "+esc(initError));
   const l=$("lrn").value.trim(),p=$("spw").value;
   if(!/^\d{12}$/.test(l))return msg("sMsg","LRN must be exactly 12 digits.");
   const {data,error}=await sb.rpc("student_register",{p_lrn:l,p_pw:p});
@@ -8,6 +9,7 @@ async function studentRegister(){
   msg("sMsg",m[0],m[1]);
 }
 async function studentLogin(){
+  if(initError)return msg("sMsg","Setup error: "+esc(initError));
   const l=$("lrn").value.trim(),p=$("spw").value;
   const {data,error}=await sb.rpc("student_login",{p_lrn:l,p_pw:p});
   if(error)return msg("sMsg","Connection error. Try again.");
