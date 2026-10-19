@@ -25,9 +25,36 @@ async function renderBallot(){
   $("ballot").innerHTML=list.map(x=>`<div class="cand"><div><b>${esc(x.name)}</b><br><small>${esc(x.office)}</small></div>${voted?(voted===x.id?'<span class="chip">✔ Your vote</span>':''):`<button class="btn" onclick="vote('${x.id}')">Vote</button>`}</div>`).join("");
   if(voted)msg("vMsg","You have already voted. One vote per eligible voter.",1);
 }
-async function vote(id){
-  if(!confirm("Submit your vote? It cannot be changed."))return;
-  const {data,error}=await sb.rpc("cast_vote",{p_lrn:user,p_pw:pass,p_candidate:id});
-  if(error||data!=="OK"&&data!=="ALREADY")return msg("vMsg","Could not record your vote. Try again.");
-  renderBallot();
+async function castVote(position, candidateId) {
+  const { error } = await sb.from('votes').insert({
+    lrn: currentLRN,
+    position: position,
+    candidate_id: candidateId
+  });
+  if (error) {
+    alert(error.code === '23505'
+      ? 'You already voted for ' + position
+      : 'Vote failed: ' + error.message);
+    return;
+  }
+  renderBallot(); // refresh and move on to the next position
+}
+
+async function renderBallot() {
+  const { data: cands } = await sb.from('candidates').select('*');
+  const { data: mine } = await sb.from('votes')
+    .select('position').eq('lrn', currentLRN);
+
+  const voted = new Set(mine.map(v => v.position));
+  const positions = [...new Set(cands.map(c => c.position))];
+  const next = positions.find(p => !voted.has(p));
+
+  const box = document.getElementById('ballot');
+  if (!next) { box.innerHTML = '<p>✅ You have voted for all positions. Thank you!</p>'; return; }
+
+  box.innerHTML = '<h3>' + next + '</h3>' +
+    cands.filter(c => c.position === next).map(c =>
+      '<button class="btn" onclick="castVote(\'' + next + '\',\'' + c.id + '\')">' +
+      c.name + '</button>'
+    ).join('');
 }
