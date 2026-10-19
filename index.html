@@ -4,45 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OrgVote</title>
-<style>
-:root{--bg:#f2f7ff;--card:#fff;--text:#0b1f3a;--muted:#5b6b82;--primary:#1d4ed8;--primary-d:#1e3a8a;--line:#d6e2f5;--ok:#15803d;--err:#b91c1c}
-@media (prefers-color-scheme:dark){:root{--bg:#0a1428;--card:#111f3a;--text:#e6eefc;--muted:#9bb0d1;--primary:#3b82f6;--primary-d:#60a5fa;--line:#23365c}}
-*{box-sizing:border-box}
-body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
-header{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
-header h1{margin:0;font-size:1.4rem}
-nav button{background:rgba(255,255,255,.15);color:#fff;border:0;padding:8px 14px;border-radius:8px;margin-left:6px;cursor:pointer}
-nav button.on{background:#fff;color:#1e3a8a}
-main{max-width:860px;margin:24px auto;padding:0 16px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
-h2{margin-top:0;color:var(--primary-d)}
-input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;margin:6px 0 12px;background:var(--bg);color:var(--text)}
-.btn{background:var(--primary);color:#fff;border:0;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:.95rem}
-.btn.alt{background:transparent;color:var(--primary);border:1px solid var(--primary)}
-.msg{padding:10px;border-radius:8px;margin:10px 0;font-size:.9rem}
-.msg.ok{background:#dcfce7;color:var(--ok)}.msg.err{background:#fee2e2;color:var(--err)}
-.cand{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:12px;margin:8px 0}
-.cand small{color:var(--muted)}
-.bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
-.bar i{display:block;height:100%;background:var(--primary)}
-.chip{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:3px 10px;margin:3px;font-size:.85rem}
-.hide{display:none}
-.row{display:flex;gap:8px}.row input{margin-bottom:0}
-@media print{header,.noprint{display:none}}
-</style>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header>
-  <h1>🗳️ OrgVote</h1>
-  <nav class="noprint">
-    <button id="nStudent" class="on" onclick="show('student')">Student Portal</button>
-    <button id="nAdmin" onclick="show('admin')">Admin Portal</button>
-  </nav>
-</header>
+<header><h1>🗳️ OrgVote</h1><a href="admin.html">Admin Portal</a></header>
 <main>
-
-<!-- STUDENT PORTAL -->
-<section id="student">
   <div id="sAuth" class="card">
     <h2>Student Login Portal</h2>
     <label>LRN (12 digits)</label>
@@ -59,118 +25,10 @@ input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;mar
     <div id="ballot"></div>
     <div id="vMsg"></div>
   </div>
-</section>
-
-<!-- ADMIN PORTAL -->
-<section id="admin" class="hide">
-  <div id="aAuth" class="card">
-    <h2>Admin Login Portal</h2>
-    <label>Unique Admin ID</label>
-    <input id="aid" type="password" placeholder="Enter Unique Admin ID">
-    <button class="btn" onclick="adminLogin()">Log in</button>
-    <div id="aMsg"></div>
-  </div>
-  <div id="aPanel" class="hide">
-    <div class="card">
-      <h2>LRN Whitelist Management</h2>
-      <div class="row"><input id="wl" inputmode="numeric" maxlength="12" placeholder="Add enrolled LRN"><button class="btn" onclick="addLRN()">Add</button></div>
-      <div id="wlList" style="margin-top:10px"></div>
-    </div>
-    <div class="card">
-      <h2>Candidate Information</h2>
-      <div class="row"><input id="cn" placeholder="Name"><input id="cp" placeholder="Position"><button class="btn" onclick="addCand()">Add</button></div>
-      <div id="cList" style="margin-top:10px"></div>
-    </div>
-    <div class="card">
-      <h2>Election Results (read-only)</h2>
-      <div id="results"></div>
-      <button class="btn noprint" onclick="window.print()">Generate Report (Print/PDF)</button>
-      <button class="btn alt noprint" onclick="csv()">Download CSV</button>
-      <button class="btn alt noprint" onclick="adminLogout()">Log out</button>
-    </div>
-  </div>
-</section>
 </main>
-
-<script>
-// NOTE: prototype only — data lives in this browser's localStorage (no server).
-const ADMIN_HASH="283b40616ccd07df6bc188351075aabee654c771e99691adb95827741839ff30";
-const K="orgvote_v1";
-let db;
-try{db=JSON.parse(localStorage.getItem(K))}catch(e){}
-db=db||{whitelist:[],candidates:[],students:{},votes:{}};
-const save=()=>{try{localStorage.setItem(K,JSON.stringify(db))}catch(e){}};
-const $=id=>document.getElementById(id);
-const msg=(id,t,ok)=>$(id).innerHTML=`<div class="msg ${ok?'ok':'err'}">${t}</div>`;
-const esc=s=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function sha(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
-let user=null,isAdmin=false;
-
-function show(p){["student","admin"].forEach(x=>{$(x).classList.toggle("hide",x!==p);$("n"+x[0].toUpperCase()+x.slice(1)).classList.toggle("on",x===p)})}
-
-// Student
-async function studentRegister(){
-  const l=$("lrn").value.trim(),p=$("spw").value;
-  if(!/^\d{12}$/.test(l))return msg("sMsg","LRN must be exactly 12 digits.");
-  if(!db.whitelist.includes(l))return msg("sMsg","LRN not found in the official SY enrollment list.");
-  if(db.students[l])return msg("sMsg","This LRN is already registered. Please log in.");
-  if(p.length<6)return msg("sMsg","Password must be at least 6 characters.");
-  db.students[l]=await sha(l+p);save();msg("sMsg","Registered! You can now log in.",1);
-}
-async function studentLogin(){
-  const l=$("lrn").value.trim(),p=$("spw").value;
-  if(!db.students[l]||db.students[l]!==await sha(l+p))return msg("sMsg","Invalid LRN or password.");
-  user=l;$("sAuth").classList.add("hide");$("sVote").classList.remove("hide");$("who").textContent="LRN ••••••••"+l.slice(-4);renderBallot();
-}
-function studentLogout(){user=null;$("sVote").classList.add("hide");$("sAuth").classList.remove("hide");$("spw").value="";$("sMsg").innerHTML=""}
-function renderBallot(){
-  const voted=db.votes[user];
-  if(!db.candidates.length){$("ballot").innerHTML="<p>No candidates yet.</p>";return}
-  $("ballot").innerHTML=db.candidates.map((c,i)=>`<div class="cand"><div><b>${esc(c.name)}</b><br><small>${esc(c.pos)}</small></div>${voted?(voted===c.id?'<span class="chip">✔ Your vote</span>':''):`<button class="btn" onclick="vote('${c.id}')">Vote</button>`}</div>`).join("");
-  if(voted)msg("vMsg","You have already voted. One vote per eligible voter.",1);
-}
-function vote(id){
-  if(db.votes[user])return;
-  if(!confirm("Submit your vote? It cannot be changed."))return;
-  db.votes[user]=id;save();renderBallot();
-}
-
-// Admin
-async function adminLogin(){
-  if(await sha($("aid").value.trim())!==ADMIN_HASH)return msg("aMsg","Invalid Admin ID.");
-  isAdmin=true;$("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");renderAdmin();
-}
-function adminLogout(){isAdmin=false;$("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");$("aid").value="";$("aMsg").innerHTML=""}
-function addLRN(){
-  const l=$("wl").value.trim();
-  if(!/^\d{12}$/.test(l)||db.whitelist.includes(l))return alert("Enter a new 12-digit LRN.");
-  db.whitelist.push(l);save();$("wl").value="";renderAdmin();
-}
-function rmLRN(l){db.whitelist=db.whitelist.filter(x=>x!==l);save();renderAdmin()}
-function addCand(){
-  const n=$("cn").value.trim(),p=$("cp").value.trim();
-  if(!n||!p)return alert("Enter name and position.");
-  db.candidates.push({id:"c"+Date.now(),name:n,pos:p});save();$("cn").value=$("cp").value="";renderAdmin();
-}
-function rmCand(id){
-  if(Object.keys(db.votes).length)return alert("Candidates can't be removed once voting has started.");
-  db.candidates=db.candidates.filter(c=>c.id!==id);save();renderAdmin();
-}
-function tally(){const t={};Object.values(db.votes).forEach(v=>t[v]=(t[v]||0)+1);return t}
-function renderAdmin(){
-  $("wlList").innerHTML=db.whitelist.map(l=>`<span class="chip">${l} <a href="#" onclick="rmLRN('${l}');return false">✕</a></span>`).join("")||"<small>No LRNs yet.</small>";
-  $("cList").innerHTML=db.candidates.map(c=>`<span class="chip">${esc(c.name)} — ${esc(c.pos)} <a href="#" onclick="rmCand('${c.id}');return false">✕</a></span>`).join("")||"<small>No candidates yet.</small>";
-  const t=tally(),total=Object.keys(db.votes).length;
-  $("results").innerHTML=`<p>Total votes: <b>${total}</b> / Registered voters: <b>${Object.keys(db.students).length}</b></p>`+
-    db.candidates.map(c=>{const n=t[c.id]||0,pc=total?Math.round(n/total*100):0;return`<div style="margin:10px 0"><b>${esc(c.name)}</b> <small>(${esc(c.pos)})</small> — ${n} votes (${pc}%)<div class="bar"><i style="width:${pc}%"></i></div></div>`}).join("");
-}
-function csv(){
-  const t=tally();
-  const rows=[["Candidate","Position","Votes"],...db.candidates.map(c=>[c.name,c.pos,t[c.id]||0])];
-  const f=v=>/^[=+\-@]/.test(String(v))?"'"+v:v;
-  const out=rows.map(r=>r.map(v=>`"${String(f(v)).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([out],{type:"text/csv"}));a.download="orgvote-results.csv";a.click();
-}
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script src="js/student.js"></script>
 </body>
 </html>
