@@ -20,21 +20,34 @@ async function studentLogin(){
 function studentLogout(){user=pass=null;$("sVote").classList.add("hide");$("sAuth").classList.remove("hide");$("spw").value="";$("sMsg").innerHTML="";$("vMsg").innerHTML=""}
 
 async function renderBallot(){
-  const [c,v]=await Promise.all([sb.rpc("list_candidates"),sb.rpc("my_votes",{p_lrn:user,p_pw:pass})]);
-  const list=c.data||[];
+  const [c,v]=await Promise.all([
+    sb.rpc("ballot_candidates",{p_lrn:user,p_pw:pass}),
+    sb.rpc("my_ballot",{p_lrn:user,p_pw:pass})
+  ]);
+  const list=c.data||[],mine=v.data||[];
   if(!list.length){$("ballot").innerHTML="<p>No candidates yet.</p>";return}
-  const votedIds=new Set((v.data||[]).map(String));
   const offices=[...new Set(list.map(x=>x.office))];
-  const doneOffices=new Set(list.filter(x=>votedIds.has(String(x.id))).map(x=>x.office));
-  const next=offices.find(o=>!doneOffices.has(o));
+  const done=new Map(mine.map(m=>[m.office,m.candidate_id]));
+  const next=offices.find(o=>!done.has(o));
   if(!next){
-    $("ballot").innerHTML="<p>✅ You have voted for all positions. Thank you!</p>"+
-      list.filter(x=>votedIds.has(String(x.id))).map(x=>`<div class="cand"><div><b>${esc(x.name)}</b><br><small>${esc(x.office)}</small></div><span class="chip">✔ Your vote</span></div>`).join("");
+    $("ballot").innerHTML="<p>✅ You have answered all positions. Thank you!</p>"+
+      offices.map(o=>{
+        const cand=list.find(x=>x.id===done.get(o));
+        return `<div class="cand"><div><b>${esc(o)}</b><br><small>${cand?esc(cand.name):"No candidate selected"}</small></div><span class="chip">${cand?"✔ Your vote":"Abstained"}</span></div>`;
+      }).join("");
     return;
   }
-  const n=doneOffices.size+1;
+  const n=offices.filter(o=>done.has(o)).length+1;
   $("ballot").innerHTML=`<h3>${esc(next)} <small>(${n} of ${offices.length})</small></h3>`+
-    list.filter(x=>x.office===next).map(x=>`<div class="cand"><div><b>${esc(x.name)}</b></div><button class="btn" onclick="vote('${x.id}')">Vote</button></div>`).join("");
+    list.filter(x=>x.office===next).map(x=>`<div class="cand"><div><b>${esc(x.name)}</b></div><button class="btn" onclick="vote('${x.id}')">Vote</button></div>`).join("")+
+    `<div class="cand"><div><b>Abstain</b><br><small>Skip this position without voting</small></div><button class="btn alt" data-o="${esc(next)}" onclick="abstain(this.dataset.o)">Abstain</button></div>`;
+}
+async function abstain(office){
+  if(!confirm("Abstain from this position? It cannot be changed."))return;
+  const {data,error}=await sb.rpc("cast_abstain",{p_lrn:user,p_pw:pass,p_office:office});
+  if(error||(data!=="OK"&&data!=="ALREADY"))return msg("vMsg","Could not record your choice. Try again.");
+  $("vMsg").innerHTML="";
+  renderBallot();
 }
 async function vote(id){
   if(!confirm("Submit your vote for this position? It cannot be changed."))return;
