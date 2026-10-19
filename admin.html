@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OrgVote Admin</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header><h1>🗳️ OrgVote Admin</h1><a href="index.html" class="noprint">Student Portal</a></header>
+<main>
+  <div id="aAuth" class="card">
+    <h2>Admin Login Portal</h2>
+    <label>Unique Admin ID</label>
+    <input id="aid" type="password" placeholder="Enter Unique Admin ID">
+    <button class="btn" onclick="adminLogin()">Log in</button>
+    <div id="aMsg"></div>
+  </div>
+  <div id="aPanel" class="hide">
+    <div class="card">
+      <h2>LRN Whitelist Management</h2>
+      <div class="row"><input id="wl" inputmode="numeric" maxlength="12" placeholder="Add enrolled LRN"><button class="btn" onclick="addLRN()">Add</button></div>
+      <div id="wlList" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Candidate Information</h2>
+      <div class="row"><input id="cn" placeholder="Name"><input id="cp" placeholder="Position"><button class="btn" onclick="addCand()">Add</button></div>
+      <div id="cList" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Election Results (read-only)</h2>
+      <div id="results"></div>
+      <button class="btn noprint" onclick="window.print()">Generate Report (Print/PDF)</button>
+      <button class="btn alt noprint" onclick="csv()">Download CSV</button>
+      <button class="btn alt noprint" onclick="adminLogout()">Log out</button>
+    </div>
+  </div>
+</main>
+<script src="js/common.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
