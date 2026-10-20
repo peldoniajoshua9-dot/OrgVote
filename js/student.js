@@ -19,12 +19,15 @@ async function studentRegister(){
 }
 async function studentLogin(){
   if(initError)return msg("sMsg","Setup error: "+esc(initError));
-  const l=$("lrn").value.trim(),p=$("spw").value;
-  const {data,error}=await sb.rpc("student_login",{p_lrn:l,p_pw:p});
+  const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10);
+  if(!g)return msg("sMsg","Please choose your grade level.");
+  const {data,error}=await sb.rpc("student_login_grade",{p_lrn:l,p_pw:p,p_grade:g});
   if(error)return msg("sMsg","Connection error. Try again.");
-  if(!data)return msg("sMsg","Invalid LRN or password.");
+  if(data==="BAD_LOGIN")return msg("sMsg","Invalid LRN or password.");
+  if(data==="WRONG_GRADE")return msg("sMsg","This LRN is registered under a different grade level. Choose the grade you registered with.");
+  if(data!=="OK")return msg("sMsg","Could not log in. Try again.");
   user=l;pass=p;$("sAuth").classList.add("hide");$("sVote").classList.remove("hide");
-  $("who").textContent="LRN ••••••••"+l.slice(-4);renderBallot();
+  $("who").textContent="LRN ••••••••"+l.slice(-4)+" · Grade "+g;renderBallot();
 }
 function studentLogout(){user=pass=null;$("sVote").classList.add("hide");$("sAuth").classList.remove("hide");$("spw").value="";$("sMsg").innerHTML="";$("vMsg").innerHTML=""}
 
