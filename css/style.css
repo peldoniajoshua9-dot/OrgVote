@@ -25,7 +25,7 @@ header{
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   border-bottom:1px solid rgba(125,211,252,.35);box-shadow:0 4px 24px rgba(37,99,235,.35);
 }
-header h1{margin:0;font-size:1.35rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 0 18px rgba(125,211,252,.7)}
+header h1 .logo{width:auto;height:40px}
 header a{
   color:#fff;text-decoration:none;background:rgba(255,255,255,.12);padding:8px 16px;border-radius:999px;
   border:1px solid rgba(255,255,255,.25);transition:.2s;
