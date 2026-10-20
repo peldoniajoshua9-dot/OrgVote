@@ -29,6 +29,7 @@ header{
   border-bottom:1px solid rgba(125,211,252,.35);box-shadow:0 4px 24px rgba(37,99,235,.35);
 }
 header h1 .logo{width:auto;height:40px}
+header h1{margin:0;display:flex;align-items:center;gap:12px}
 header a{
   color:#fff;text-decoration:none;background:rgba(255,255,255,.12);padding:8px 16px;border-radius:999px;
   border:1px solid rgba(255,255,255,.25);transition:.2s;
