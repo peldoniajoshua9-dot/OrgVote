@@ -24,6 +24,7 @@ async function renderBallot(){
     sb.rpc("ballot_candidates",{p_lrn:user,p_pw:pass}),
     sb.rpc("my_ballot",{p_lrn:user,p_pw:pass})
   ]);
+  if(c.error)return msg("vMsg","Ballot error: "+esc(c.error.message));
   const list=c.data||[],mine=v.data||[];
   if(!list.length){$("ballot").innerHTML="<p>No candidates yet.</p>";return}
   const offices=[...new Set(list.map(x=>x.office))];
