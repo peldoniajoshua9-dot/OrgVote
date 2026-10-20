@@ -14,6 +14,16 @@
     <label>LRN (12 digits)</label>
     <input id="lrn" inputmode="numeric" maxlength="12" placeholder="e.g. 123456789012">
     <label>Password</label>
+    <label>Grade level</label>
+<select id="sgrade" style="width:100%;padding:10px;margin:6px 0 12px">
+  <option value="">Select your grade level</option>
+  <option value="7">Grade 7</option>
+  <option value="8">Grade 8</option>
+  <option value="9">Grade 9</option>
+  <option value="10">Grade 10</option>
+  <option value="11">Grade 11</option>
+  <option value="12">Grade 12</option>
+</select>
     <input id="spw" type="password" placeholder="Create or enter your password">
     <button class="btn" onclick="studentRegister()">Register (first time)</button>
     <button class="btn alt" onclick="studentLogin()">Log in</button>

@@ -1,11 +1,20 @@
 let user=null,pass=null;
 async function studentRegister(){
   if(initError)return msg("sMsg","Setup error: "+esc(initError));
-  const l=$("lrn").value.trim(),p=$("spw").value;
+  const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10);
   if(!/^\d{12}$/.test(l))return msg("sMsg","LRN must be exactly 12 digits.");
-  const {data,error}=await sb.rpc("student_register",{p_lrn:l,p_pw:p});
+  if(!g)return msg("sMsg","Please choose your grade level.");
+  if(!confirm("Register as Grade "+g+"? You cannot change your grade level later."))return;
+  const {data,error}=await sb.rpc("student_register",{p_lrn:l,p_pw:p,p_grade:g});
   if(error)return msg("sMsg","Connection error. Try again.");
-  const m={OK:["Registered! You can now log in.",1],NOT_ENROLLED:["LRN not found in the official SY enrollment list."],EXISTS:["This LRN is already registered. Please log in."],WEAK:["Password must be at least 6 characters."]}[data];
+  const m={
+    OK:["Registered! You can now log in.",1],
+    NOT_ENROLLED:["LRN not found in the official SY enrollment list."],
+    EXISTS:["This LRN is already registered. Please log in."],
+    WEAK:["Password must be at least 6 characters."],
+    WRONG_GRADE:["That grade level doesn't match your enrollment record. Ask the admin."],
+    NO_GRADE:["Please choose your grade level."]
+  }[data]||["Could not register. Try again."];
   msg("sMsg",m[0],m[1]);
 }
 async function studentLogin(){
