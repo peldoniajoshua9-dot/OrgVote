@@ -7,14 +7,15 @@ async function studentRegister(){
   if(!confirm("Register as Grade "+g+"? You cannot change your grade level later."))return;
   const {data,error}=await sb.rpc("student_register",{p_lrn:l,p_pw:p,p_grade:g});
   if(error)return msg("sMsg","Connection error. Try again.");
+  const [st,code]=String(data).split(":");
   const m={
-    OK:["Registered! You can now log in.",1],
+    OK:["Registered! SAVE YOUR RECOVERY CODE NOW (shown only once): "+code+" . You need it if you forget your password.",1],
     NOT_ENROLLED:["LRN not found in the official SY enrollment list."],
     EXISTS:["This LRN is already registered. Please log in."],
     WEAK:["Password must be at least 6 characters."],
     WRONG_GRADE:["That grade level doesn't match your enrollment record. Ask the admin."],
     NO_GRADE:["Please choose your grade level."]
-  }[data]||["Could not register. Try again."];
+  }[st]||["Could not register. Try again."];
   msg("sMsg",m[0],m[1]);
 }
 async function studentLogin(){
@@ -68,4 +69,26 @@ async function vote(id){
   if(error||(data!=="OK"&&data!=="ALREADY"))return msg("vMsg","Could not record your vote. Try again.");
   $("vMsg").innerHTML="";
   renderBallot();
+}
+function showReset(){$("sAuth").classList.add("hide");$("sReset").classList.remove("hide")}
+function hideReset(){
+  $("sReset").classList.add("hide");$("sAuth").classList.remove("hide");
+  $("rlrn").value=$("rcode").value=$("rpw").value="";$("rMsg").innerHTML="";
+}
+async function resetPassword(){
+  if(initError)return msg("rMsg","Setup error: "+esc(initError));
+  const l=$("rlrn").value.trim(),c=$("rcode").value.trim(),p=$("rpw").value;
+  if(!/^\d{12}$/.test(l))return msg("rMsg","LRN must be exactly 12 digits.");
+  const {data,error}=await sb.rpc("student_reset_password",{p_lrn:l,p_code:c,p_new:p});
+  if(error)return msg("rMsg","Connection error. Try again.");
+  const [st,nc]=String(data).split(":");
+  if(st==="OK")return msg("rMsg","Password changed! Your NEW recovery code (the old one no longer works): "+nc+" . Save it, then go back and log in.",1);
+  msg("rMsg",{WEAK:"New password must be at least 6 characters.",BAD_CODE:"LRN or recovery code is incorrect."}[st]||"Could not reset. Try again.");
+}
+async function newRecovery(){
+  if(!confirm("Make a new recovery code? Your old code will stop working."))return;
+  const {data,error}=await sb.rpc("student_new_recovery",{p_lrn:user,p_pw:pass});
+  const [st,code]=String(data).split(":");
+  if(error||st!=="OK")return msg("vMsg","Could not make a new code. Try again.");
+  msg("vMsg","Your NEW recovery code (save it, shown only once): "+code,1);
 }

@@ -25,13 +25,26 @@
   <option value="12">Grade 12</option>
 </select>
     <input id="spw" type="password" placeholder="Create or enter your password">
+    <p><a href="#" onclick="showReset();return false">Forgot password?</a></p>
     <button class="btn" onclick="studentRegister()">Register (first time)</button>
     <button class="btn alt" onclick="studentLogin()">Log in</button>
     <div id="sMsg"></div>
   </div>
+  <div id="sReset" class="card hide">
+  <h2>Reset Password</h2>
+  <label>LRN (12 digits)</label>
+  <input id="rlrn" inputmode="numeric" maxlength="12">
+  <label>Recovery code</label>
+  <input id="rcode" placeholder="e.g. K7M2-9QXA-4TBN">
+  <label>New password</label>
+  <input id="rpw" type="password" placeholder="At least 6 characters">
+  <button class="btn" onclick="resetPassword()">Reset password</button>
+  <button class="btn alt" onclick="hideReset()">Back to login</button>
+  <div id="rMsg"></div>
+</div>
   <div id="sVote" class="card hide">
     <h2>Candidates &amp; Online Voting</h2>
-    <p>Logged in as <b id="who"></b>. <button class="btn alt" onclick="studentLogout()">Log out</button></p>
+    <p>Logged in as <b id="who"></b>. <button class="btn alt" onclick="studentLogout()"<button class="btn alt" onclick="newRecovery()">New recovery code</button>>Log out</button></p>
     <div id="ballot"></div>
     <div id="vMsg"></div>
   </div>
