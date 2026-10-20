@@ -88,3 +88,13 @@ main,footer{position:relative;z-index:1}
 header h1{display:flex;align-items:center;gap:12px}
 header h1 .logo{width:auto;height:46px;flex:none;filter:drop-shadow(0 0 10px rgba(255,255,255,.35))}
 @media print{#bg{display:none}}
+
+:root{--card:rgba(255,255,255,.92);--muted:#3f5578;--line:rgba(37,99,235,.3)}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0b1a38;--bg2:#13295c;
+    --card:rgba(26,50,98,.85);
+    --text:#f4f8ff;--muted:#b9cbea;
+    --line:rgba(125,190,255,.35);
+  }
+}
