@@ -1,12 +1,19 @@
-let adminId=null,state=null,students=[],stuErr="",lastError=null;
+let adminId=null,state=null,students=[],stuErr="",wlist=[],wlNote="",lastError=null;
+const openG=new Set();    // whitelist grade folders the admin opened (they stay open after a refresh)
+const closedC=new Set();  // candidate position windows the admin closed
 async function load(){
   const {data,error}=await sb.rpc("admin_state",{p_admin:adminId});
   if(error){lastError=error;return false;}
   state=data;
-  // Student list is separate so the rest of the panel still works if the new SQL has not been run yet
+  // Extra lists are loaded separately so the rest of the panel works even if a SQL file has not been run yet
   const s=await sb.rpc("admin_list_students",{p_admin:adminId});
   students=s.error?[]:(s.data||[]);
   stuErr=s.error?s.error.message:"";
+  const w=await sb.rpc("admin_list_whitelist",{p_admin:adminId});
+  if(w.error){
+    wlist=(state.whitelist||[]).map(l=>({lrn:l,grade:null,registered:false}));
+    wlNote="Grade folders need orgvote_admin_organize.sql to be run in Supabase.";
+  }else{wlist=w.data||[];wlNote="";}
   render();return true;
 }
 async function adminLogin(){
@@ -18,16 +25,53 @@ async function adminLogin(){
     return msg("aMsg",m.includes("unauthorized")?"Invalid Admin ID.":"Connection error: "+esc(m||"unknown")+(lastError&&lastError.code?" ("+esc(lastError.code)+")":""));}
   $("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");
 }
-function adminLogout(){adminId=state=null;students=[];$("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");$("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML=""}
+function adminLogout(){adminId=state=null;students=[];wlist=[];$("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");$("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML=""}
+
+// ---- Whitelist (grade-level folders) ----
 async function addLRN(){
-  const l=$("wl").value.trim();
+  const l=$("wl").value.trim(),g=parseInt($("wgrade").value,10);
   if(!/^\d{12}$/.test(l))return alert("Enter a 12-digit LRN.");
-  await sb.rpc("admin_add_lrn",{p_admin:adminId,p_lrn:l});$("wl").value="";load();
+  if(!g)return alert("Choose the grade level for this LRN.");
+  const {data,error}=await sb.rpc("admin_add_lrn_grade",{p_admin:adminId,p_lrn:l,p_grade:g});
+  if(error){
+    // SQL not run yet: fall back to the old add so the admin is not blocked
+    await sb.rpc("admin_add_lrn",{p_admin:adminId,p_lrn:l});
+    $("wl").value="";return load();
+  }
+  if(data==="REGISTERED_OTHER_GRADE")return alert("This student already registered under a different grade level.");
+  if(data!=="OK")return alert("Could not add this LRN.");
+  openG.add(String(g));$("wl").value="";load();
+}
+async function setGrade(l){
+  const g=parseInt(prompt("Grade level (7 to 12) for LRN "+l+":"),10);
+  if(!g)return;
+  const {data,error}=await sb.rpc("admin_add_lrn_grade",{p_admin:adminId,p_lrn:l,p_grade:g});
+  if(error)return alert("Error: "+error.message);
+  if(data==="BAD_GRADE")return alert("Grade must be 7 to 12.");
+  if(data==="REGISTERED_OTHER_GRADE")return alert("This student already registered under a different grade level.");
+  openG.add(String(g));load();
 }
 async function rmLRN(l){
   const {data}=await sb.rpc("admin_remove_lrn",{p_admin:adminId,p_lrn:l});
   if(data==="VOTED")alert("This student already voted and can't be removed.");load();
 }
+function folderToggle(k,isOpen){isOpen?openG.add(k):openG.delete(k)}
+function renderWhitelist(){
+  const groups={};
+  wlist.forEach(w=>{const k=w.grade==null?"none":String(w.grade);(groups[k]=groups[k]||[]).push(w)});
+  const reg=wlist.filter(w=>w.registered).length;
+  $("wlSummary").innerHTML="<b>"+wlist.length+"</b> LRNs on the whitelist"+(wlNote?"":" · <b>"+reg+"</b> registered")+(wlNote?"<br><small>"+esc(wlNote)+"</small>":"");
+  if(!wlist.length){$("wlList").innerHTML="<small>No LRNs yet.</small>";return}
+  const keys=["7","8","9","10","11","12"].concat(groups.none?["none"]:[]);
+  $("wlList").innerHTML=keys.map(k=>{
+    const items=groups[k]||[];
+    const title=k==="none"?"No grade assigned":"Grade "+k;
+    const chips=items.map(w=>`<span class="chip">${esc(w.lrn)}${w.registered?" ✔":""}${k==="none"?` <a href="#" onclick="setGrade('${w.lrn}');return false">set grade</a>`:""} <a href="#" onclick="rmLRN('${w.lrn}');return false">✕</a></span>`).join("");
+    return `<details class="folder" ${openG.has(k)?"open":""} ontoggle="folderToggle('${k}',this.open)"><summary>📁 ${title} <span class="chip">${items.length}</span></summary><div>${chips||"<small>No LRNs in this folder.</small>"}</div></details>`;
+  }).join("");
+}
+
+// ---- Candidates (one window per position) ----
 async function addCand(){
   const n=$("cn").value.trim(),p=$("cp").value.trim();
   if(!n||!p)return alert("Enter name and position.");
@@ -36,6 +80,19 @@ async function addCand(){
 async function rmCand(id){
   const {data}=await sb.rpc("admin_remove_candidate",{p_admin:adminId,p_id:id});
   if(data==="VOTING_STARTED")alert("Candidates can't be removed once voting has started.");load();
+}
+function winToggle(el){el.open?closedC.delete(el.dataset.p):closedC.add(el.dataset.p)}
+function byPosition(list){
+  const m={};
+  list.forEach(c=>{(m[c.position]=m[c.position]||[]).push(c)});
+  return Object.keys(m).sort((a,b)=>a.localeCompare(b)).map(p=>[p,m[p]]);
+}
+function renderCandidates(){
+  const groups=byPosition(state.candidates);
+  $("cList").innerHTML=groups.map(([p,cs])=>
+    `<details class="folder" data-p="${esc(p)}" ${closedC.has(p)?"":"open"} ontoggle="winToggle(this)"><summary>🗳️ ${esc(p)} <span class="chip">${cs.length} candidate${cs.length>1?"s":""}</span></summary><div>`+
+    cs.map(c=>`<span class="chip">${esc(c.name)} <a href="#" onclick="rmCand('${c.id}');return false">✕</a></span>`).join("")+
+    `</div></details>`).join("")||"<small>No candidates yet.</small>";
 }
 
 // ---- Student Gmail verification + one-time password ----
@@ -86,13 +143,22 @@ function renderStudents(){
     }).join("")+`</tbody></table></div>`;
 }
 
-function render(){
-  $("wlList").innerHTML=state.whitelist.map(l=>`<span class="chip">${l} <a href="#" onclick="rmLRN('${l}');return false">✕</a></span>`).join("")||"<small>No LRNs yet.</small>";
-  $("cList").innerHTML=state.candidates.map(c=>`<span class="chip">${esc(c.name)} — ${esc(c.position)} <a href="#" onclick="rmCand('${c.id}');return false">✕</a></span>`).join("")||"<small>No candidates yet.</small>";
-  renderStudents();
+// ---- Results (grouped by position, percent within each position) ----
+function renderResults(){
   const total=state.total_votes;
-  $("results").innerHTML=`<p>Total votes: <b>${total}</b> / Registered voters: <b>${state.registered}</b></p>`+
-    state.candidates.map(c=>{const pc=total?Math.round(c.votes/total*100):0;return`<div style="margin:10px 0"><b>${esc(c.name)}</b> <small>(${esc(c.position)})</small> — ${c.votes} votes (${pc}%)<div class="bar"><i style="width:${pc}%"></i></div></div>`}).join("");
+  $("results").innerHTML=`<p>Total votes cast: <b>${total}</b> / Registered voters: <b>${state.registered}</b></p>`+
+    byPosition(state.candidates).map(([p,cs])=>{
+      const sum=cs.reduce((a,c)=>a+Number(c.votes||0),0);
+      return `<h3 class="pos">${esc(p)} <small>(${sum} vote${sum===1?"":"s"})</small></h3>`+
+        cs.map(c=>{const pc=sum?Math.round(c.votes/sum*100):0;return`<div style="margin:10px 0"><b>${esc(c.name)}</b> — ${c.votes} votes (${pc}%)<div class="bar"><i style="width:${pc}%"></i></div></div>`}).join("");
+    }).join("");
+}
+
+function render(){
+  renderWhitelist();
+  renderCandidates();
+  renderStudents();
+  renderResults();
 }
 function csv(){
   const rows=[["Candidate","Position","Votes"],...state.candidates.map(c=>[c.name,c.position,c.votes])];

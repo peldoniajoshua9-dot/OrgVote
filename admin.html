@@ -10,6 +10,11 @@
   table.stu th,table.stu td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
   table.stu th{color:var(--primary-d);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em}
   .btn.sm{min-height:34px;padding:4px 12px;font-size:.85rem;margin:2px}
+  .row select{margin-bottom:0;width:auto;min-width:150px}
+  details.folder{margin:8px 0;padding:8px 14px;background:rgba(127,160,220,.06);border:1px solid var(--line);border-radius:12px}
+  details.folder summary{cursor:pointer;font-weight:650;color:var(--primary-d)}
+  details.folder > div{margin-top:10px}
+  h3.pos{margin:16px 0 4px;color:var(--primary-d)}
 </style>
 </head>
 <body>
@@ -25,8 +30,22 @@
   <div id="aPanel" class="hide">
     <div class="card">
       <h2>LRN Whitelist Management</h2>
-      <div class="row"><input id="wl" inputmode="numeric" maxlength="12" placeholder="Add enrolled LRN"><button class="btn" onclick="addLRN()">Add</button></div>
-      <div id="wlList" style="margin-top:10px"></div>
+      <div class="row">
+        <input id="wl" inputmode="numeric" maxlength="12" placeholder="Add enrolled LRN">
+        <select id="wgrade">
+          <option value="">Grade level</option>
+          <option value="7">Grade 7</option>
+          <option value="8">Grade 8</option>
+          <option value="9">Grade 9</option>
+          <option value="10">Grade 10</option>
+          <option value="11">Grade 11</option>
+          <option value="12">Grade 12</option>
+        </select>
+        <button class="btn" onclick="addLRN()">Add</button>
+      </div>
+      <p id="wlSummary" style="margin:10px 0 0"></p>
+      <div id="wlList" style="margin-top:6px"></div>
+      <small>✔ = student has registered. The grade here is checked when the student registers.</small>
     </div>
 
     <div class="card noprint">
