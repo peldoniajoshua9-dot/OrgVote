@@ -1,11 +1,14 @@
 let adminId=null,state=null,students=[],stuErr="",wlist=[],wlNote="",lastError=null;
-const openG=new Set();    // whitelist grade folders the admin opened (they stay open after a refresh)
-const closedC=new Set();  // candidate position windows the admin closed
+let view="wl",wlSel="all";   // which section and which whitelist folder are showing
+const openG=new Set();       // whitelist grade folders opened in the "all" view
+const closedC=new Set();     // candidate position windows the admin closed
+const GI={"7":"🔵","8":"🟢","9":"🟡","10":"🟠","11":"🔴","12":"🟣","none":"⚪"};  // a different bullet per grade folder
+
 async function load(){
   const {data,error}=await sb.rpc("admin_state",{p_admin:adminId});
   if(error){lastError=error;return false;}
   state=data;
-  // Extra lists are loaded separately so the rest of the panel works even if a SQL file has not been run yet
+  // Extra lists load separately so the panel still works if a SQL file has not been run yet
   const s=await sb.rpc("admin_list_students",{p_admin:adminId});
   students=s.error?[]:(s.data||[]);
   stuErr=s.error?s.error.message:"";
@@ -25,7 +28,31 @@ async function adminLogin(){
     return msg("aMsg",m.includes("unauthorized")?"Invalid Admin ID.":"Connection error: "+esc(m||"unknown")+(lastError&&lastError.code?" ("+esc(lastError.code)+")":""));}
   $("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");
 }
-function adminLogout(){adminId=state=null;students=[];wlist=[];$("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");$("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML=""}
+function adminLogout(){
+  adminId=state=null;students=[];wlist=[];view="wl";wlSel="all";
+  $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
+  $("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML="";
+}
+
+// ---- Left sidebar ----
+function go(v,sel){
+  view=v;
+  if(v==="wl"){wlSel=sel||"all";if(/^\d+$/.test(wlSel))$("wgrade").value=wlSel;}
+  render();window.scrollTo({top:0,behavior:"smooth"});
+}
+function renderSide(){
+  const cnt=k=>wlist.filter(w=>(w.grade==null?"none":String(w.grade))===k).length;
+  const item=(icon,label,click,on,count,sub)=>
+    `<a href="#" class="si${sub?" sub":""}${on?" on":""}" onclick="${click};return false"><span class="ic">${icon}</span><span>${label}</span>${count==null?"":`<span class="chip">${count}</span>`}</a>`;
+  let h=item("📁","Whitelist","go('wl','all')",view==="wl"&&wlSel==="all",wlist.length);
+  ["7","8","9","10","11","12"].forEach(g=>{h+=item(GI[g],"Grade "+g,`go('wl','${g}')`,view==="wl"&&wlSel===g,cnt(g),1)});
+  if(cnt("none"))h+=item(GI.none,"No grade",`go('wl','none')`,view==="wl"&&wlSel==="none",cnt("none"),1);
+  h+=item("✉️","Students &amp; OTP","go('stu')",view==="stu",students.length);
+  h+=item("🗳️","Candidates","go('cand')",view==="cand",state.candidates.length);
+  h+=item("📊","Results","go('res')",view==="res");
+  h+=`<a href="#" class="si out" onclick="adminLogout();return false"><span class="ic">🚪</span><span>Log out</span></a>`;
+  $("side").innerHTML=h;
+}
 
 // ---- Whitelist (grade-level folders) ----
 async function addLRN(){
@@ -56,18 +83,28 @@ async function rmLRN(l){
   if(data==="VOTED")alert("This student already voted and can't be removed.");load();
 }
 function folderToggle(k,isOpen){isOpen?openG.add(k):openG.delete(k)}
+function lrnChip(w,k){
+  return `<span class="chip">${esc(w.lrn)}${w.registered?" ✔":""}${k==="none"?` <a href="#" onclick="setGrade('${w.lrn}');return false">set grade</a>`:""} <a href="#" onclick="rmLRN('${w.lrn}');return false">✕</a></span>`;
+}
 function renderWhitelist(){
   const groups={};
   wlist.forEach(w=>{const k=w.grade==null?"none":String(w.grade);(groups[k]=groups[k]||[]).push(w)});
   const reg=wlist.filter(w=>w.registered).length;
   $("wlSummary").innerHTML="<b>"+wlist.length+"</b> LRNs on the whitelist"+(wlNote?"":" · <b>"+reg+"</b> registered")+(wlNote?"<br><small>"+esc(wlNote)+"</small>":"");
   if(!wlist.length){$("wlList").innerHTML="<small>No LRNs yet.</small>";return}
-  const keys=["7","8","9","10","11","12"].concat(groups.none?["none"]:[]);
+
+  if(wlSel!=="all"){   // one folder picked in the sidebar
+    const items=groups[wlSel]||[];
+    const title=wlSel==="none"?"No grade assigned":"Grade "+wlSel;
+    $("wlList").innerHTML=`<h3 class="pos">${GI[wlSel]} ${title} <small>(${items.length})</small></h3>`+
+      (items.map(w=>lrnChip(w,wlSel)).join("")||"<small>No LRNs in this folder yet.</small>");
+    return;
+  }
+  const keys=["7","8","9","10","11","12"].concat(groups.none?["none"]:[]);   // all folders
   $("wlList").innerHTML=keys.map(k=>{
     const items=groups[k]||[];
     const title=k==="none"?"No grade assigned":"Grade "+k;
-    const chips=items.map(w=>`<span class="chip">${esc(w.lrn)}${w.registered?" ✔":""}${k==="none"?` <a href="#" onclick="setGrade('${w.lrn}');return false">set grade</a>`:""} <a href="#" onclick="rmLRN('${w.lrn}');return false">✕</a></span>`).join("");
-    return `<details class="folder" ${openG.has(k)?"open":""} ontoggle="folderToggle('${k}',this.open)"><summary>📁 ${title} <span class="chip">${items.length}</span></summary><div>${chips||"<small>No LRNs in this folder.</small>"}</div></details>`;
+    return `<details class="folder" ${openG.has(k)?"open":""} ontoggle="folderToggle('${k}',this.open)"><summary>${GI[k]} ${title} <span class="chip">${items.length}</span></summary><div>${items.map(w=>lrnChip(w,k)).join("")||"<small>No LRNs in this folder.</small>"}</div></details>`;
   }).join("");
 }
 
@@ -88,8 +125,7 @@ function byPosition(list){
   return Object.keys(m).sort((a,b)=>a.localeCompare(b)).map(p=>[p,m[p]]);
 }
 function renderCandidates(){
-  const groups=byPosition(state.candidates);
-  $("cList").innerHTML=groups.map(([p,cs])=>
+  $("cList").innerHTML=byPosition(state.candidates).map(([p,cs])=>
     `<details class="folder" data-p="${esc(p)}" ${closedC.has(p)?"":"open"} ontoggle="winToggle(this)"><summary>🗳️ ${esc(p)} <span class="chip">${cs.length} candidate${cs.length>1?"s":""}</span></summary><div>`+
     cs.map(c=>`<span class="chip">${esc(c.name)} <a href="#" onclick="rmCand('${c.id}');return false">✕</a></span>`).join("")+
     `</div></details>`).join("")||"<small>No candidates yet.</small>";
@@ -155,10 +191,10 @@ function renderResults(){
 }
 
 function render(){
-  renderWhitelist();
-  renderCandidates();
-  renderStudents();
-  renderResults();
+  if(wlSel==="none"&&!wlist.some(w=>w.grade==null))wlSel="all";   // the "No grade" folder emptied out
+  const sections={wl:"vWl",stu:"vStu",cand:"vCand",res:"vRes"};
+  Object.keys(sections).forEach(k=>$(sections[k]).classList.toggle("hide",k!==view));
+  renderSide();renderWhitelist();renderCandidates();renderStudents();renderResults();
 }
 function csv(){
   const rows=[["Candidate","Position","Votes"],...state.candidates.map(c=>[c.name,c.position,c.votes])];
