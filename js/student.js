@@ -1,52 +1,23 @@
-let user=null,pass=null,pendingLrn="";
-
-// STEP 1 of registration: validate, then email a one-time code. No account exists yet.
-async function studentStartRegister(){
+let user=null,pass=null;
+async function studentRegister(){
   if(initError)return msg("sMsg","Setup error: "+esc(initError));
-  const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10),
-        e=$("semail").value.trim().toLowerCase();
+  const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10);
   if(!/^\d{12}$/.test(l))return msg("sMsg","LRN must be exactly 12 digits.");
   if(!g)return msg("sMsg","Please choose your grade level.");
-  if(!/^[a-z0-9._%+-]+@gmail\.com$/.test(e))return msg("sMsg","Enter a valid Gmail address (name@gmail.com).");
   if(!confirm("Register as Grade "+g+"? You cannot change your grade level later."))return;
-  msg("sMsg","Sending code...",1);
-  const {data,error}=await sb.functions.invoke("send-code",{body:{purpose:"REGISTER",lrn:l,email:e,pw:p,grade:g}});
-  const st=data&&data.status;
-  if(error||!st)return msg("sMsg","Could not send the email. Try again.");
-  if(st==="SENT"){
-    pendingLrn=l;
-    $("sAuth").classList.add("hide");$("sVerify").classList.remove("hide");
-    return msg("vfMsg","We sent a 6-digit code to "+esc(e)+". It expires in 15 minutes.",1);
-  }
-  msg("sMsg",{
-    BAD_EMAIL:"Enter a valid Gmail address (name@gmail.com).",
-    NOT_ENROLLED:"LRN not found in the official SY enrollment list.",
-    EXISTS:"This LRN is already registered. Please log in.",
-    WEAK:"Password must be at least 6 characters.",
-    WRONG_GRADE:"That grade level doesn't match your enrollment record. Ask the admin.",
-    NO_GRADE:"Please choose your grade level.",
-    WAIT:"Please wait a minute before asking for another code."
-  }[st]||"Could not send the email. Try again.");
+  const {data,error}=await sb.rpc("student_register",{p_lrn:l,p_pw:p,p_grade:g});
+  if(error)return msg("sMsg","Connection error. Try again.");
+  const st=String(data).split(":")[0];   // works whether or not the database adds extra text after OK
+  const m={
+    OK:["Registered! You can log in now. If you forget your password, ask your admin for a one-time password.",1],
+    NOT_ENROLLED:["LRN not found in the official SY enrollment list."],
+    EXISTS:["This LRN is already registered. Please log in."],
+    WEAK:["Password must be at least 6 characters."],
+    WRONG_GRADE:["That grade level doesn't match your enrollment record. Ask the admin."],
+    NO_GRADE:["Please choose your grade level."]
+  }[st]||["Could not register. Try again."];
+  msg("sMsg",m[0],m[1]);
 }
-
-// STEP 2: student types the emailed code -> account is created with a verified Gmail
-async function verifyRegister(){
-  const c=$("vcode").value.trim();
-  if(!/^\d{6}$/.test(c))return msg("vfMsg","Enter the 6-digit code.");
-  const {data,error}=await sb.rpc("student_register_verify",{p_lrn:pendingLrn,p_code:c});
-  if(error)return msg("vfMsg","Connection error. Try again.");
-  if(data==="OK"){
-    $("vcode").value="";$("vfMsg").innerHTML="";
-    $("sVerify").classList.add("hide");$("sAuth").classList.remove("hide");
-    return msg("sMsg","Registered and Gmail verified! You can log in now.",1);
-  }
-  msg("vfMsg",{EXISTS:"This LRN is already registered. Please log in."}[data]||"Wrong or expired code.");
-}
-function cancelVerify(){
-  $("sVerify").classList.add("hide");$("sAuth").classList.remove("hide");
-  $("vcode").value="";$("vfMsg").innerHTML="";
-}
-
 async function studentLogin(){
   if(initError)return msg("sMsg","Setup error: "+esc(initError));
   const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10);
@@ -100,30 +71,19 @@ async function vote(id){
   renderBallot();
 }
 
-// Forgot password: one-time code emailed to the verified Gmail
+// Forgot password: LRN + one-time password from the admin + new password
 function showReset(){$("sAuth").classList.add("hide");$("sReset").classList.remove("hide")}
 function hideReset(){
-  $("sReset").classList.add("hide");$("sAuth").classList.remove("hide");$("rStep2").classList.add("hide");
+  $("sReset").classList.add("hide");$("sAuth").classList.remove("hide");
   $("rlrn").value=$("rcode").value=$("rpw").value="";$("rMsg").innerHTML="";
 }
-async function sendResetCode(){
-  if(initError)return msg("rMsg","Setup error: "+esc(initError));
-  const l=$("rlrn").value.trim();
-  if(!/^\d{12}$/.test(l))return msg("rMsg","LRN must be exactly 12 digits.");
-  msg("rMsg","Sending...",1);
-  const {data,error}=await sb.functions.invoke("send-code",{body:{purpose:"RESET",lrn:l}});
-  const st=data&&data.status;
-  if(error||!st||st==="ERROR")return msg("rMsg","Could not send the email. Try again.");
-  if(st==="WAIT")return msg("rMsg","Please wait a minute before asking for another code.");
-  $("rStep2").classList.remove("hide");
-  msg("rMsg","If this LRN has a verified Gmail, a 6-digit code was sent. It expires in 15 minutes.",1);
-}
 async function resetPassword(){
+  if(initError)return msg("rMsg","Setup error: "+esc(initError));
   const l=$("rlrn").value.trim(),c=$("rcode").value.trim(),p=$("rpw").value;
   if(!/^\d{12}$/.test(l))return msg("rMsg","LRN must be exactly 12 digits.");
-  if(!/^\d{6}$/.test(c))return msg("rMsg","Enter the 6-digit code from your Gmail.");
-  const {data,error}=await sb.rpc("student_reset_with_email",{p_lrn:l,p_code:c,p_new:p});
+  if(!/^\d{6}$/.test(c))return msg("rMsg","Enter the 6-digit one-time password from your admin.");
+  const {data,error}=await sb.rpc("student_reset_with_otp",{p_lrn:l,p_code:c,p_new:p});
   if(error)return msg("rMsg","Connection error. Try again.");
   if(data==="OK"){hideReset();return msg("sMsg","Password changed! You can log in now.",1)}
-  msg("rMsg",{WEAK:"New password must be at least 6 characters.",BAD_CODE:"Wrong or expired code."}[data]||"Could not reset. Try again.");
+  msg("rMsg",{WEAK:"New password must be at least 6 characters.",BAD_CODE:"Wrong or expired one-time password. Ask the admin for a new one."}[data]||"Could not reset. Try again.");
 }
