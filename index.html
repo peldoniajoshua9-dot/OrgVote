@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OrgVote</title>
-<link rel="stylesheet" href="css/style-modern.css">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <header><h1><img class="logo" src="css/logo.png" alt="ORGVOTE">OrgVote</h1><a href="admin.html">Admin Portal</a></header>
@@ -15,37 +15,53 @@
     <label>LRN (12 digits)</label>
     <input id="lrn" inputmode="numeric" maxlength="12" placeholder="e.g. 123456789012">
     <label>Grade level</label>
-<select id="sgrade" style="width:100%;padding:10px;margin:6px 0 12px">
-  <option value="">Select your grade level</option>
-  <option value="7">Grade 7</option>
-  <option value="8">Grade 8</option>
-  <option value="9">Grade 9</option>
-  <option value="10">Grade 10</option>
-  <option value="11">Grade 11</option>
-  <option value="12">Grade 12</option>
-</select>
-<label>Password</label>
+    <select id="sgrade" style="width:100%;padding:10px;margin:6px 0 12px">
+      <option value="">Select your grade level</option>
+      <option value="7">Grade 7</option>
+      <option value="8">Grade 8</option>
+      <option value="9">Grade 9</option>
+      <option value="10">Grade 10</option>
+      <option value="11">Grade 11</option>
+      <option value="12">Grade 12</option>
+    </select>
+    <label>Gmail address (only for first-time registration)</label>
+    <input id="semail" type="email" placeholder="yourname@gmail.com" autocomplete="email">
+    <label>Password</label>
     <input id="spw" type="password" placeholder="Create or enter your password">
-    <p><a href="#" onclick="showReset();return false">Forgot password?</a></p>
-    <button class="btn" onclick="studentRegister()">Register (first time)</button>
+    <button class="btn" onclick="studentStartRegister()">Register (first time)</button>
     <button class="btn alt" onclick="studentLogin()">Log in</button>
+    <p><a href="#" onclick="showReset();return false">Forgot password?</a></p>
     <div id="sMsg"></div>
   </div>
+
+  <div id="sVerify" class="card hide">
+    <h2>Verify your Gmail</h2>
+    <p>Enter the 6-digit code we sent to your Gmail. Check Spam too.</p>
+    <input id="vcode" inputmode="numeric" maxlength="6" placeholder="123456">
+    <button class="btn" onclick="verifyRegister()">Verify and register</button>
+    <button class="btn alt" onclick="cancelVerify()">Back</button>
+    <div id="vfMsg"></div>
+  </div>
+
   <div id="sReset" class="card hide">
-  <h2>Reset Password</h2>
-  <label>LRN (12 digits)</label>
-  <input id="rlrn" inputmode="numeric" maxlength="12">
-  <label>Recovery code</label>
-  <input id="rcode" placeholder="e.g. K7M2-9QXA-4TBN">
-  <label>New password</label>
-  <input id="rpw" type="password" placeholder="At least 6 characters">
-  <button class="btn" onclick="resetPassword()">Reset password</button>
-  <button class="btn alt" onclick="hideReset()">Back to login</button>
-  <div id="rMsg"></div>
-</div>
+    <h2>Reset Password</h2>
+    <label>LRN (12 digits)</label>
+    <input id="rlrn" inputmode="numeric" maxlength="12">
+    <button class="btn" onclick="sendResetCode()">Send code to my Gmail</button>
+    <div id="rStep2" class="hide">
+      <label>6-digit code from your Gmail</label>
+      <input id="rcode" inputmode="numeric" maxlength="6">
+      <label>New password</label>
+      <input id="rpw" type="password" placeholder="At least 6 characters">
+      <button class="btn" onclick="resetPassword()">Reset password</button>
+    </div>
+    <button class="btn alt" onclick="hideReset()">Back to login</button>
+    <div id="rMsg"></div>
+  </div>
+
   <div id="sVote" class="card hide">
     <h2>Candidates &amp; Online Voting</h2>
-    <p>Logged in as <b id="who"></b>. <button class="btn alt" onclick="studentLogout()">Log out</button> <button class="btn alt" onclick="newRecovery()">New recovery code</button></p>
+    <p>Logged in as <b id="who"></b>. <button class="btn alt" onclick="studentLogout()">Log out</button></p>
     <div id="ballot"></div>
     <div id="vMsg"></div>
   </div>
