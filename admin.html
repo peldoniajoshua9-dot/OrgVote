@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OrgVote Admin</title>
 <link rel="stylesheet" href="css/style-modern.css">
+<style>
+  table.stu{width:100%;border-collapse:collapse;font-size:.92rem}
+  table.stu th,table.stu td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.stu th{color:var(--primary-d);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em}
+  .btn.sm{min-height:34px;padding:4px 12px;font-size:.85rem;margin:2px}
+</style>
 </head>
 <body>
 <header><h1> OrgVote Admin</h1><a href="index.html" class="noprint">Student Portal</a></header>
@@ -22,11 +28,15 @@
       <div class="row"><input id="wl" inputmode="numeric" maxlength="12" placeholder="Add enrolled LRN"><button class="btn" onclick="addLRN()">Add</button></div>
       <div id="wlList" style="margin-top:10px"></div>
     </div>
-    <div class="card">
-  <h2>Forgot Password Help (One-Time Password)</h2>
-  <div class="row"><input id="otpLrn" inputmode="numeric" maxlength="12" placeholder="Student LRN"><button class="btn" onclick="genOtp()">Generate OTP</button></div>
-  <div id="otpOut" style="margin-top:10px"></div>
-</div>
+
+    <div class="card noprint">
+      <h2>Student Gmail &amp; One-Time Password</h2>
+      <p>Confirm each student's Gmail with the student, click <b>Verify</b>, then use <b>Get OTP</b> when they forget their password. The OTP can be emailed only to a verified Gmail.</p>
+      <input id="stuSearch" placeholder="Search by LRN or Gmail" oninput="renderStudents()">
+      <div id="otpOut" style="margin:10px 0"></div>
+      <div id="stuList"></div>
+    </div>
+
     <div class="card">
       <h2>Candidate Information</h2>
       <div class="row"><input id="cn" placeholder="Name"><input id="cp" placeholder="Position"><button class="btn" onclick="addCand()">Add</button></div>
