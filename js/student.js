@@ -1,15 +1,18 @@
 let user=null,pass=null;
 async function studentRegister(){
   if(initError)return msg("sMsg","Setup error: "+esc(initError));
-  const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10);
+  const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10),
+        e=$("semail").value.trim().toLowerCase();
   if(!/^\d{12}$/.test(l))return msg("sMsg","LRN must be exactly 12 digits.");
   if(!g)return msg("sMsg","Please choose your grade level.");
-  if(!confirm("Register as Grade "+g+"? You cannot change your grade level later."))return;
-  const {data,error}=await sb.rpc("student_register",{p_lrn:l,p_pw:p,p_grade:g});
+  if(!/^[a-z0-9._%+-]+@gmail\.com$/.test(e))return msg("sMsg","Enter a valid Gmail address (name@gmail.com).");
+  if(!confirm("Register as Grade "+g+" with "+e+"? You cannot change your grade level later."))return;
+  const {data,error}=await sb.rpc("student_register_email",{p_lrn:l,p_pw:p,p_grade:g,p_email:e});
   if(error)return msg("sMsg","Connection error. Try again.");
-  const st=String(data).split(":")[0];   // works whether or not the database adds extra text after OK
+  const st=String(data).split(":")[0];
   const m={
     OK:["Registered! You can log in now. If you forget your password, ask your admin for a one-time password.",1],
+    BAD_EMAIL:["Enter a valid Gmail address (name@gmail.com)."],
     NOT_ENROLLED:["LRN not found in the official SY enrollment list."],
     EXISTS:["This LRN is already registered. Please log in."],
     WEAK:["Password must be at least 6 characters."],

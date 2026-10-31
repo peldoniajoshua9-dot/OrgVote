@@ -24,6 +24,8 @@
       <option value="11">Grade 11</option>
       <option value="12">Grade 12</option>
     </select>
+    <label>Gmail address (first-time registration only)</label>
+    <input id="semail" type="email" placeholder="yourname@gmail.com" autocomplete="email">
     <label>Password</label>
     <input id="spw" type="password" placeholder="Create or enter your password">
     <button class="btn" onclick="studentRegister()">Register (first time)</button>
@@ -34,7 +36,7 @@
 
   <div id="sReset" class="card hide">
     <h2>Reset Password</h2>
-    <p>Ask your admin for a one-time password (OTP). It works once and expires in 15 minutes.</p>
+    <p>Ask your admin for a one-time password (OTP). The admin will email it to the Gmail you registered with. It works once and expires in 15 minutes.</p>
     <label>LRN (12 digits)</label>
     <input id="rlrn" inputmode="numeric" maxlength="12">
     <label>One-time password (6 digits)</label>
