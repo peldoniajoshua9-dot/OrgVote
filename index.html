@@ -24,37 +24,24 @@
       <option value="11">Grade 11</option>
       <option value="12">Grade 12</option>
     </select>
-    <label>Gmail address (only for first-time registration)</label>
-    <input id="semail" type="email" placeholder="yourname@gmail.com" autocomplete="email">
     <label>Password</label>
     <input id="spw" type="password" placeholder="Create or enter your password">
-    <button class="btn" onclick="studentStartRegister()">Register (first time)</button>
+    <button class="btn" onclick="studentRegister()">Register (first time)</button>
     <button class="btn alt" onclick="studentLogin()">Log in</button>
     <p><a href="#" onclick="showReset();return false">Forgot password?</a></p>
     <div id="sMsg"></div>
   </div>
 
-  <div id="sVerify" class="card hide">
-    <h2>Verify your Gmail</h2>
-    <p>Enter the 6-digit code we sent to your Gmail. Check Spam too.</p>
-    <input id="vcode" inputmode="numeric" maxlength="6" placeholder="123456">
-    <button class="btn" onclick="verifyRegister()">Verify and register</button>
-    <button class="btn alt" onclick="cancelVerify()">Back</button>
-    <div id="vfMsg"></div>
-  </div>
-
   <div id="sReset" class="card hide">
     <h2>Reset Password</h2>
+    <p>Ask your admin for a one-time password (OTP). It works once and expires in 15 minutes.</p>
     <label>LRN (12 digits)</label>
     <input id="rlrn" inputmode="numeric" maxlength="12">
-    <button class="btn" onclick="sendResetCode()">Send code to my Gmail</button>
-    <div id="rStep2" class="hide">
-      <label>6-digit code from your Gmail</label>
-      <input id="rcode" inputmode="numeric" maxlength="6">
-      <label>New password</label>
-      <input id="rpw" type="password" placeholder="At least 6 characters">
-      <button class="btn" onclick="resetPassword()">Reset password</button>
-    </div>
+    <label>One-time password (6 digits)</label>
+    <input id="rcode" inputmode="numeric" maxlength="6" placeholder="123456">
+    <label>New password</label>
+    <input id="rpw" type="password" placeholder="At least 6 characters">
+    <button class="btn" onclick="resetPassword()">Reset password</button>
     <button class="btn alt" onclick="hideReset()">Back to login</button>
     <div id="rMsg"></div>
   </div>
