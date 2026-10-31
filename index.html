@@ -16,30 +16,6 @@
     <input id="lrn" inputmode="numeric" maxlength="12" placeholder="e.g. 123456789012">
     <label>Password</label>
     <label>Grade level</label>
-    <div id="sVerify" class="card hide">
-  <h2>Verify your Gmail</h2>
-  <p>Enter the 6-digit code we sent to your Gmail. Check Spam too.</p>
-  <input id="vcode" inputmode="numeric" maxlength="6" placeholder="123456">
-  <button class="btn" onclick="verifyRegister()">Verify and register</button>
-  <button class="btn alt" onclick="cancelVerify()">Back</button>
-  <div id="vfMsg"></div>
-</div>
-
-<div id="sReset" class="card hide">
-  <h2>Reset Password</h2>
-  <label>LRN (12 digits)</label>
-  <input id="rlrn" inputmode="numeric" maxlength="12">
-  <button class="btn" onclick="sendResetCode()">Send code to my Gmail</button>
-  <div id="rStep2" class="hide">
-    <label>6-digit code from your Gmail</label>
-    <input id="rcode" inputmode="numeric" maxlength="6">
-    <label>New password</label>
-    <input id="rpw" type="password" placeholder="At least 6 characters">
-    <button class="btn" onclick="resetPassword()">Reset password</button>
-  </div>
-  <button class="btn alt" onclick="hideReset()">Back to login</button>
-  <div id="rMsg"></div>
-</div>
 <select id="sgrade" style="width:100%;padding:10px;margin:6px 0 12px">
   <option value="">Select your grade level</option>
   <option value="7">Grade 7</option>
@@ -50,8 +26,8 @@
   <option value="12">Grade 12</option>
 </select>
     <input id="spw" type="password" placeholder="Create or enter your password">
-    <p><a href="#" onclick="showReset();return false">Forgot password?</a></p> 
-    <button class="btn" onclick="studentStartRegister()">Register</button>
+    <p><a href="#" onclick="showReset();return false">Forgot password?</a></p>
+    <button class="btn" onclick="studentRegister()">Register (first time)</button>
     <button class="btn alt" onclick="studentLogin()">Log in</button>
     <div id="sMsg"></div>
   </div>
@@ -61,8 +37,6 @@
   <input id="rlrn" inputmode="numeric" maxlength="12">
   <label>Recovery code</label>
   <input id="rcode" placeholder="e.g. K7M2-9QXA-4TBN">
-  <label>Gmail address</label>
-<input id="semail" type="email" placeholder="yourname@gmail.com" autocomplete="email">
   <label>New password</label>
   <input id="rpw" type="password" placeholder="At least 6 characters">
   <button class="btn" onclick="resetPassword()">Reset password</button>
