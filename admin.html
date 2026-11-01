@@ -18,6 +18,24 @@
   .si.on{color:#fff;background:linear-gradient(135deg,var(--primary),var(--accent))}
   .si .ic{width:1.4em;text-align:center;flex:none}
   .si .chip{margin:0 0 0 auto}
+  .si .caret{margin-left:8px;flex:none;font-size:.85rem;opacity:.85}
+  .si .ic{display:inline-flex;align-items:center;justify-content:center}
+  /* CSS bullets: a different shape and color for each folder */
+  .bul{display:inline-block;width:11px;height:11px;flex:none;margin-right:6px;vertical-align:middle;background:var(--primary)}
+  .si .bul{margin:0}
+  .si.on .bul{box-shadow:0 0 0 2px rgba(255,255,255,.75)}
+  .bul.sq{border-radius:3px}
+  .bul.dia{background:var(--accent);border-radius:2px;transform:rotate(45deg) scale(.85)}
+  .bul.fold{width:15px;height:10px;background:#f59e0b;border-radius:2px 6px 2px 2px}
+  .bul.cir{background:#8b5cf6;border-radius:50%}
+  .bul.out{background:transparent;border:2px solid var(--err);border-radius:50%}
+  .bul.g7{background:#3b82f6;border-radius:50%}
+  .bul.g8{background:#22c55e;border-radius:50%}
+  .bul.g9{background:#eab308;border-radius:3px}
+  .bul.g10{background:#f97316;border-radius:3px}
+  .bul.g11{background:#ef4444;border-radius:2px;transform:rotate(45deg) scale(.85)}
+  .bul.g12{background:#a855f7;border-radius:2px;transform:rotate(45deg) scale(.85)}
+  .bul.gn{background:transparent;border:2px solid var(--muted);border-radius:50%}
   .si.sub{margin-left:20px;padding:6px 10px;font-size:.92rem;font-weight:500}
   .si.out{margin-top:10px;padding-top:12px;border-top:1px solid var(--line);border-radius:0 0 10px 10px}
   @media (max-width:800px){
@@ -39,7 +57,7 @@
 </style>
 </head>
 <body>
-<header><h1> OrgVote Admin</h1><a href="index.html" class="noprint">Student Portal</a></header>
+<header><h1>OrgVote Admin</h1><a href="index.html" class="noprint">Student Portal</a></header>
 <main>
   <div id="aAuth" class="card">
     <h2>Admin Login Portal</h2>
@@ -71,7 +89,7 @@
           </div>
           <p id="wlSummary" style="margin:10px 0 0"></p>
           <div id="wlList" style="margin-top:6px"></div>
-          <small>✔ = student has registered. The grade here is checked when the student registers.</small>
+          <small>"registered" next to an LRN means the student has already registered. The grade here is checked when a student registers.</small>
         </div>
 
         <div id="vStu" class="card noprint hide">

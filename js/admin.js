@@ -1,8 +1,8 @@
 let adminId=null,state=null,students=[],stuErr="",wlist=[],wlNote="",lastError=null;
-let view="wl",wlSel="all";   // which section and which whitelist folder are showing
+let view="res",wlSel="all",wlOpen=false;   // Results opens first; the Whitelist dropdown starts closed
 const openG=new Set();       // whitelist grade folders opened in the "all" view
 const closedC=new Set();     // candidate position windows the admin closed
-const GI={"7":"🔵","8":"🟢","9":"🟡","10":"🟠","11":"🔴","12":"🟣","none":"⚪"};  // a different bullet per grade folder
+const GI={"7":'<i class="bul g7"></i>',"8":'<i class="bul g8"></i>',"9":'<i class="bul g9"></i>',"10":'<i class="bul g10"></i>',"11":'<i class="bul g11"></i>',"12":'<i class="bul g12"></i>',"none":'<i class="bul gn"></i>'};  // a different bullet per grade folder
 
 async function load(){
   const {data,error}=await sb.rpc("admin_state",{p_admin:adminId});
@@ -29,7 +29,7 @@ async function adminLogin(){
   $("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");
 }
 function adminLogout(){
-  adminId=state=null;students=[];wlist=[];view="wl";wlSel="all";
+  adminId=state=null;students=[];wlist=[];view="res";wlSel="all";wlOpen=false;
   $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
   $("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML="";
 }
@@ -37,20 +37,27 @@ function adminLogout(){
 // ---- Left sidebar ----
 function go(v,sel){
   view=v;
-  if(v==="wl"){wlSel=sel||"all";if(/^\d+$/.test(wlSel))$("wgrade").value=wlSel;}
+  if(v==="wl"){wlSel=sel||"all";wlOpen=true;if(/^\d+$/.test(wlSel))$("wgrade").value=wlSel;}
   render();window.scrollTo({top:0,behavior:"smooth"});
+}
+function toggleWl(){
+  if(view!=="wl"){view="wl";wlSel="all";wlOpen=true;}   // first click opens the Whitelist and its dropdown
+  else wlOpen=!wlOpen;                                  // later clicks open or close the dropdown
+  render();
 }
 function renderSide(){
   const cnt=k=>wlist.filter(w=>(w.grade==null?"none":String(w.grade))===k).length;
   const item=(icon,label,click,on,count,sub)=>
     `<a href="#" class="si${sub?" sub":""}${on?" on":""}" onclick="${click};return false"><span class="ic">${icon}</span><span>${label}</span>${count==null?"":`<span class="chip">${count}</span>`}</a>`;
-  let h=item("📁","Whitelist","go('wl','all')",view==="wl"&&wlSel==="all",wlist.length);
-  ["7","8","9","10","11","12"].forEach(g=>{h+=item(GI[g],"Grade "+g,`go('wl','${g}')`,view==="wl"&&wlSel===g,cnt(g),1)});
-  if(cnt("none"))h+=item(GI.none,"No grade",`go('wl','none')`,view==="wl"&&wlSel==="none",cnt("none"),1);
-  h+=item("✉️","Students &amp; OTP","go('stu')",view==="stu",students.length);
-  h+=item("🗳️","Candidates","go('cand')",view==="cand",state.candidates.length);
-  h+=item("📊","Results","go('res')",view==="res");
-  h+=`<a href="#" class="si out" onclick="adminLogout();return false"><span class="ic">🚪</span><span>Log out</span></a>`;
+  let h=item('<i class="bul sq"></i>',"Results","go('res')",view==="res");
+  h+=item('<i class="bul dia"></i>',"Candidates","go('cand')",view==="cand",state.candidates.length);
+  h+=`<a href="#" class="si${view==="wl"&&wlSel==="all"?" on":""}" onclick="toggleWl();return false"><span class="ic"><i class="bul fold"></i></span><span>Whitelist</span><span class="chip">${wlist.length}</span><span class="caret">${wlOpen?"▾":"▸"}</span></a>`;
+  if(wlOpen){   // the dropdown: one folder per grade, each with its own bullet
+    ["7","8","9","10","11","12"].forEach(g=>{h+=item(GI[g],"Grade "+g,`go('wl','${g}')`,view==="wl"&&wlSel===g,cnt(g),1)});
+    if(cnt("none"))h+=item(GI.none,"No grade",`go('wl','none')`,view==="wl"&&wlSel==="none",cnt("none"),1);
+  }
+  h+=item('<i class="bul cir"></i>',"Students &amp; OTP","go('stu')",view==="stu",students.length);
+  h+=`<a href="#" class="si out" onclick="adminLogout();return false"><span class="ic"><i class="bul out"></i></span><span>Log out</span></a>`;
   $("side").innerHTML=h;
 }
 
@@ -84,7 +91,7 @@ async function rmLRN(l){
 }
 function folderToggle(k,isOpen){isOpen?openG.add(k):openG.delete(k)}
 function lrnChip(w,k){
-  return `<span class="chip">${esc(w.lrn)}${w.registered?" ✔":""}${k==="none"?` <a href="#" onclick="setGrade('${w.lrn}');return false">set grade</a>`:""} <a href="#" onclick="rmLRN('${w.lrn}');return false">✕</a></span>`;
+  return `<span class="chip">${esc(w.lrn)}${w.registered?" <small>registered</small>":""}${k==="none"?` <a href="#" onclick="setGrade('${w.lrn}');return false">set grade</a>`:""} <a href="#" onclick="rmLRN('${w.lrn}');return false">×</a></span>`;
 }
 function renderWhitelist(){
   const groups={};
@@ -126,8 +133,8 @@ function byPosition(list){
 }
 function renderCandidates(){
   $("cList").innerHTML=byPosition(state.candidates).map(([p,cs])=>
-    `<details class="folder" data-p="${esc(p)}" ${closedC.has(p)?"":"open"} ontoggle="winToggle(this)"><summary>🗳️ ${esc(p)} <span class="chip">${cs.length} candidate${cs.length>1?"s":""}</span></summary><div>`+
-    cs.map(c=>`<span class="chip">${esc(c.name)} <a href="#" onclick="rmCand('${c.id}');return false">✕</a></span>`).join("")+
+    `<details class="folder" data-p="${esc(p)}" ${closedC.has(p)?"":"open"} ontoggle="winToggle(this)"><summary><i class="bul dia"></i> ${esc(p)} <span class="chip">${cs.length} candidate${cs.length>1?"s":""}</span></summary><div>`+
+    cs.map(c=>`<span class="chip">${esc(c.name)} <a href="#" onclick="rmCand('${c.id}');return false">×</a></span>`).join("")+
     `</div></details>`).join("")||"<small>No candidates yet.</small>";
 }
 
@@ -169,7 +176,7 @@ function renderStudents(){
   if(!rows.length){box.innerHTML="<small>"+(students.length?"No match.":"No students have registered yet.")+"</small>";return}
   box.innerHTML=`<div style="overflow-x:auto"><table class="stu"><thead><tr><th>LRN</th><th>Grade</th><th>Gmail</th><th>Status</th><th>Actions</th></tr></thead><tbody>`+
     rows.map(s=>{
-      const status=s.verified?`<span class="chip">✔ Verified</span>`:(s.email?`<span class="chip">Unverified</span>`:`<small>No Gmail</small>`);
+      const status=s.verified?`<span class="chip">Verified</span>`:(s.email?`<span class="chip">Unverified</span>`:`<small>No Gmail</small>`);
       const acts=
         (s.email&&!s.verified?`<button class="btn sm" onclick="verifyEmail('${s.lrn}',true)">Verify</button>`:"")+
         (s.verified?`<button class="btn sm alt" onclick="verifyEmail('${s.lrn}',false)">Unverify</button>`:"")+
