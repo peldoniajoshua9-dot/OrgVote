@@ -133,10 +133,21 @@ async function rmCand(id){
   if(data==="VOTING_STARTED")alert("Candidates can't be removed once voting has started.");load();
 }
 function winToggle(el){el.open?closedC.delete(el.dataset.p):closedC.add(el.dataset.p)}
+// Order of offices, highest first. Anything not listed goes after these, A to Z.
+const POS_GROUPS=[["president"],["vice president","vp"],["secretary"],["treasurer"],["auditor"],["public information officer","pio"],["business manager"],["peace officer","sergeant at arms","sergeant"],["representative","rep"]];
+function posRank(p){
+  let t=String(p||"").toLowerCase().replace(/[-_.]/g," ").replace(/\s+/g," ").trim();
+  const asst=/^(assistant|asst)\s+/.test(t);
+  t=t.replace(/^(assistant|asst)\s+/,"");
+  const keys=[];POS_GROUPS.forEach((g,i)=>g.forEach(k=>keys.push([k,i])));
+  keys.sort((a,b)=>b[0].length-a[0].length);   // "vice president" is tested before "president"
+  const hit=keys.find(([k])=>new RegExp("(^|\\s)"+k+"(\\s|$)").test(t));
+  return hit?hit[1]+(asst?0.5:0):100;
+}
 function byPosition(list){
   const m={};
   list.forEach(c=>{(m[c.position]=m[c.position]||[]).push(c)});
-  return Object.keys(m).sort((a,b)=>a.localeCompare(b)).map(p=>[p,m[p]]);
+  return Object.keys(m).sort((a,b)=>posRank(a)-posRank(b)||a.localeCompare(b)).map(p=>[p,m[p]]);
 }
 function photoTag(c){
   const p=cphotos[c.id];
@@ -204,12 +215,18 @@ function renderStudents(){
 
 // ---- Results (grouped by position, percent within each position) ----
 function renderResults(){
-  const total=state.total_votes;
+  const total=state.total_votes,closed=win&&win.state==="closed";
   $("results").innerHTML=`<p>Total votes cast: <b>${total}</b> / Registered voters: <b>${state.registered}</b></p>`+
     byPosition(state.candidates).map(([p,cs])=>{
-      const sum=cs.reduce((a,c)=>a+Number(c.votes||0),0);
+      const rows=cs.slice().sort((a,b)=>Number(b.votes||0)-Number(a.votes||0)||String(a.name).localeCompare(String(b.name)));
+      const sum=rows.reduce((a,c)=>a+Number(c.votes||0),0),top=rows.length?Number(rows[0].votes||0):0;
+      const leaders=rows.filter(c=>top>0&&Number(c.votes||0)===top).length;
       return `<h3 class="pos">${esc(p)} <small>(${sum} vote${sum===1?"":"s"})</small></h3>`+
-        cs.map(c=>{const pc=sum?Math.round(c.votes/sum*100):0;return`<div style="margin:10px 0"><b>${esc(c.name)}</b> — ${c.votes} votes (${pc}%)<div class="bar"><i style="width:${pc}%"></i></div></div>`}).join("");
+        rows.map(c=>{
+          const v=Number(c.votes||0),pc=sum?Math.round(v/sum*100):0;
+          const tag=top>0&&v===top?`<span class="chip">${leaders>1?"Tied":(closed?"Winner":"Leading")}</span>`:"";
+          return `<div style="margin:10px 0"><b>${esc(c.name)}</b> ${tag} - ${v} vote${v===1?"":"s"} (${pc}%)<div class="bar"><i style="width:${pc}%"></i></div></div>`;
+        }).join("");
     }).join("");
 }
 
@@ -312,8 +329,20 @@ function render(){
   renderSide();renderWhitelist();renderCandidates();renderStudents();renderResults();renderControl();
 }
 function csv(){
-  const rows=[["Candidate","Position","Votes"],...state.candidates.map(c=>[c.name,c.position,c.votes])];
+  const rows=[["Candidate","Position","Votes"],...byPosition(state.candidates).flatMap(([p,cs])=>cs.slice().sort((a,b)=>Number(b.votes||0)-Number(a.votes||0)).map(c=>[c.name,c.position,c.votes]))];
   const f=v=>/^[=+\-@]/.test(String(v))?"'"+v:v;
   const out=rows.map(r=>r.map(v=>`"${String(f(v)).replace(/"/g,'""')}"`).join(",")).join("\n");
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([out],{type:"text/csv"}));a.download="orgvote-results.csv";a.click();
 }
+
+// Always start at a clean sign-in screen (reload, back button, or a restored tab)
+function resetToSignIn(){
+  clearInterval(winTick);
+  adminId=state=null;students=[];wlist=[];win=null;cphotos={};view="res";wlSel="all";wlOpen=false;
+  $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
+  $("aMsg").innerHTML="";$("otpOut").innerHTML="";
+  ["aid","wl","wgrade","stuSearch","cn","cp","tmStart","rbConfirm"].forEach(id=>{const el=$(id);if(el)el.value=""});
+  window.scrollTo(0,0);
+}
+if("scrollRestoration" in history)history.scrollRestoration="manual";
+window.addEventListener("pageshow",resetToSignIn);

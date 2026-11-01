@@ -1,5 +1,17 @@
 let user=null,pass=null;
 let cands=[],photos={},picked=null,vstatus=null,timerId=null;
+// Order of offices, highest first. Anything not listed goes after these, A to Z.
+const POS_GROUPS=[["president"],["vice president","vp"],["secretary"],["treasurer"],["auditor"],["public information officer","pio"],["business manager"],["peace officer","sergeant at arms","sergeant"],["representative","rep"]];
+function posRank(p){
+  let t=String(p||"").toLowerCase().replace(/[-_.]/g," ").replace(/\s+/g," ").trim();
+  const asst=/^(assistant|asst)\s+/.test(t);
+  t=t.replace(/^(assistant|asst)\s+/,"");
+  const keys=[];POS_GROUPS.forEach((g,i)=>g.forEach(k=>keys.push([k,i])));
+  keys.sort((a,b)=>b[0].length-a[0].length);   // "vice president" is tested before "president"
+  const hit=keys.find(([k])=>new RegExp("(^|\\s)"+k+"(\\s|$)").test(t));
+  return hit?hit[1]+(asst?0.5:0):100;
+}
+
 async function studentRegister(){
   if(initError)return msg("sMsg","Setup error: "+esc(initError));
   const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10),
@@ -97,7 +109,7 @@ async function renderBallot(){
   const list=c.data||[],mine=v.data||[];
   cands=list;picked=null;
   if(!list.length){$("ballot").innerHTML="<p>No candidates yet.</p>";return}
-  const offices=[...new Set(list.map(x=>x.office))];
+  const offices=[...new Set(list.map(x=>x.office))].sort((a,b)=>posRank(a)-posRank(b)||a.localeCompare(b));   // President first, then Vice President, and so on
   const done=new Map(mine.map(m=>[m.office,m.candidate_id]));
   const next=offices.find(o=>!done.has(o));
   if(!next){
@@ -170,3 +182,15 @@ async function resetPassword(){
   if(data==="OK"){hideReset();return msg("sMsg","Password changed! You can log in now.",1)}
   msg("rMsg",{WEAK:"New password must be at least 6 characters.",BAD_CODE:"Wrong or expired one-time password. Ask the admin for a new one."}[data]||"Could not reset. Try again.");
 }
+
+// Always start at a clean sign-in screen (reload, back button, or a restored tab)
+function resetToSignIn(){
+  clearInterval(timerId);user=pass=null;picked=null;
+  ["sVote","sReset"].forEach(id=>{const el=$(id);if(el)el.classList.add("hide")});
+  $("sAuth").classList.remove("hide");
+  ["lrn","semail","spw","sgrade","rlrn","rcode","rpw"].forEach(id=>{const el=$(id);if(el)el.value=""});
+  ["sMsg","vMsg","rMsg","ballot","vTimer"].forEach(id=>{const el=$(id);if(el)el.innerHTML=""});
+  window.scrollTo(0,0);
+}
+if("scrollRestoration" in history)history.scrollRestoration="manual";
+window.addEventListener("pageshow",resetToSignIn);
