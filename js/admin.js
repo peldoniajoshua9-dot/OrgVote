@@ -1,4 +1,5 @@
 let adminId=null,state=null,students=[],stuErr="",wlist=[],wlNote="",lastError=null;
+let win=null,cphotos={},winTick=null;   // voting timer + candidate photos
 let view="res",wlSel="all",wlOpen=false;   // Results opens first; the Whitelist dropdown starts closed
 const openG=new Set();       // whitelist grade folders opened in the "all" view
 const closedC=new Set();     // candidate position windows the admin closed
@@ -17,6 +18,10 @@ async function load(){
     wlist=(state.whitelist||[]).map(l=>({lrn:l,grade:null,registered:false}));
     wlNote="Grade folders need orgvote_admin_organize.sql to be run in Supabase.";
   }else{wlist=w.data||[];wlNote="";}
+  const p=await sb.rpc("admin_list_candidate_photos",{p_admin:adminId});
+  cphotos=p.error?{}:(p.data||{});
+  const wd=await sb.rpc("admin_get_window",{p_admin:adminId});
+  win=wd.error?null:wd.data;
   render();return true;
 }
 async function adminLogin(){
@@ -29,6 +34,7 @@ async function adminLogin(){
   $("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");
 }
 function adminLogout(){
+  clearInterval(winTick);win=null;cphotos={};
   adminId=state=null;students=[];wlist=[];view="res";wlSel="all";wlOpen=false;
   $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
   $("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML="";
@@ -51,6 +57,7 @@ function renderSide(){
     `<a href="#" class="si${sub?" sub":""}${on?" on":""}" onclick="${click};return false"><span class="ic">${icon}</span><span>${label}</span>${count==null?"":`<span class="chip">${count}</span>`}</a>`;
   let h=item('<i class="bul sq"></i>',"Results","go('res')",view==="res");
   h+=item('<i class="bul dia"></i>',"Candidates","go('cand')",view==="cand",state.candidates.length);
+  h+=item('<i class="bul tm"></i>',"Timer &amp; Reset","go('ctl')",view==="ctl");
   h+=`<a href="#" class="si${view==="wl"&&wlSel==="all"?" on":""}" onclick="toggleWl();return false"><span class="ic"><i class="bul fold"></i></span><span>Whitelist</span><span class="chip">${wlist.length}</span><span class="caret">${wlOpen?"▾":"▸"}</span></a>`;
   if(wlOpen){   // the dropdown: one folder per grade, each with its own bullet
     ["7","8","9","10","11","12"].forEach(g=>{h+=item(GI[g],"Grade "+g,`go('wl','${g}')`,view==="wl"&&wlSel===g,cnt(g),1)});
@@ -131,10 +138,18 @@ function byPosition(list){
   list.forEach(c=>{(m[c.position]=m[c.position]||[]).push(c)});
   return Object.keys(m).sort((a,b)=>a.localeCompare(b)).map(p=>[p,m[p]]);
 }
+function photoTag(c){
+  const p=cphotos[c.id];
+  if(p&&/^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(p))return `<img src="${p}" alt="">`;
+  return esc(String(c.name||"?").trim().charAt(0).toUpperCase());
+}
 function renderCandidates(){
   $("cList").innerHTML=byPosition(state.candidates).map(([p,cs])=>
     `<details class="folder" data-p="${esc(p)}" ${closedC.has(p)?"":"open"} ontoggle="winToggle(this)"><summary><i class="bul dia"></i> ${esc(p)} <span class="chip">${cs.length} candidate${cs.length>1?"s":""}</span></summary><div>`+
-    cs.map(c=>`<span class="chip">${esc(c.name)} <a href="#" onclick="rmCand('${c.id}');return false">×</a></span>`).join("")+
+    cs.map(c=>{const has=!!cphotos[c.id];return `<div class="acand"><div class="aph">${photoTag(c)}</div><div class="ainfo"><b>${esc(c.name)}</b><div>`+
+      `<label class="btn sm alt" style="cursor:pointer">${has?"Change photo":"Add photo"}<input type="file" accept="image/*" hidden onchange="setPhoto('${c.id}',this)"></label>`+
+      (has?`<button class="btn sm alt" onclick="rmPhoto('${c.id}')">Remove photo</button>`:"")+
+      `<button class="btn sm alt" onclick="rmCand('${c.id}')">Delete candidate</button></div></div></div>`}).join("")+
     `</div></details>`).join("")||"<small>No candidates yet.</small>";
 }
 
@@ -197,11 +212,103 @@ function renderResults(){
     }).join("");
 }
 
+// ---- Candidate photos ----
+function shrink(file){   // crop to 240x300 and compress to a small JPEG
+  return new Promise((res,rej)=>{
+    const img=new Image(),u=URL.createObjectURL(file);
+    img.onload=()=>{
+      const W=240,H=300,cv=document.createElement("canvas");cv.width=W;cv.height=H;
+      const x=cv.getContext("2d"),r=Math.max(W/img.width,H/img.height),w=img.width*r,h=img.height*r;
+      x.fillStyle="#fff";x.fillRect(0,0,W,H);
+      x.drawImage(img,(W-w)/2,(H-h)*0.25,w,h);   // keeps heads in frame
+      URL.revokeObjectURL(u);res(cv.toDataURL("image/jpeg",0.82));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("bad image"))};
+    img.src=u;
+  });
+}
+async function setPhoto(id,input){
+  const f=input.files&&input.files[0];input.value="";
+  if(!f)return;
+  if(!/^image\//.test(f.type))return alert("Choose an image file (JPG or PNG).");
+  let url;try{url=await shrink(f)}catch(e){return alert("Could not read that image.")}
+  const {data,error}=await sb.rpc("admin_set_candidate_photo",{p_admin:adminId,p_id:id,p_photo:url});
+  if(error)return alert("Error: "+error.message+"\nRun orgvote_ballot_features.sql in the Supabase SQL Editor.");
+  if(data!=="OK")return alert("Could not save the photo.");
+  load();
+}
+async function rmPhoto(id){
+  if(!confirm("Remove this candidate's photo?"))return;
+  const {data,error}=await sb.rpc("admin_set_candidate_photo",{p_admin:adminId,p_id:id,p_photo:null});
+  if(error)return alert("Error: "+error.message);
+  load();
+}
+
+// ---- Voting timer + reset ballot ----
+function fmtLeft(s){
+  s=Math.max(0,Math.floor(s));
+  const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),x=s%60;
+  return (d?d+"d ":"")+((d||h)?h+"h ":"")+m+"m "+String(x).padStart(2,"0")+"s";
+}
+function winText(){
+  if(!win||win.state==="none")return "No timer is set. Voting is open all the time.";
+  const now=Date.now();
+  const o=win.opens_at?new Date(win.opens_at).toLocaleString():"",c=win.closes_at?new Date(win.closes_at).toLocaleString():"";
+  if(win.state==="upcoming")return "Voting opens "+o+" (in "+fmtLeft((Date.parse(win.opens_at)-now)/1000)+")"+(c?" and closes "+c+".":".");
+  if(win.state==="closed")return "Voting closed on "+c+".";
+  return "Voting is open"+(c?" and closes "+c+" ("+fmtLeft((Date.parse(win.closes_at)-now)/1000)+" left).":".");
+}
+function renderControl(){
+  clearInterval(winTick);
+  $("winStatus").textContent=winText();
+  if(view!=="ctl")return;
+  winTick=setInterval(()=>{
+    $("winStatus").textContent=winText();
+    const edge=win&&((win.state==="upcoming"&&Date.parse(win.opens_at)<=Date.now())||(win.state==="open"&&win.closes_at&&Date.parse(win.closes_at)<=Date.now()));
+    if(edge){clearInterval(winTick);load()}
+  },1000);
+}
+async function setWindow(){
+  const d=parseInt($("tmDays").value||"0",10),h=parseInt($("tmHours").value||"0",10);
+  if(!(d>=0&&h>=0)||(d===0&&h===0))return msg("ctlMsg","Enter days and/or hours greater than 0.");
+  const sv=$("tmStart").value,start=sv?new Date(sv):null;
+  if(start&&isNaN(start))return msg("ctlMsg","Pick a valid start date and time.");
+  const base=start||new Date();
+  const end=new Date(base.getTime()+d*86400000+h*3600000);
+  const {data,error}=await sb.rpc("admin_set_window",{p_admin:adminId,p_opens:start?start.toISOString():null,p_closes:end.toISOString()});
+  if(error)return msg("ctlMsg","Error: "+esc(error.message)+". Run orgvote_ballot_features.sql in Supabase.");
+  if(data!=="OK")return msg("ctlMsg","That time range is not valid.");
+  msg("ctlMsg","Timer saved: voting "+(start?"opens "+start.toLocaleString():"is open now")+" and closes "+end.toLocaleString()+".",1);
+  load();
+}
+async function closeNow(){
+  if(!confirm("Close voting right now? Students will not be able to vote."))return;
+  const {error}=await sb.rpc("admin_close_voting_now",{p_admin:adminId});
+  if(error)return msg("ctlMsg","Error: "+esc(error.message));
+  msg("ctlMsg","Voting is closed.",1);load();
+}
+async function clearWindow(){
+  const {error}=await sb.rpc("admin_clear_window",{p_admin:adminId});
+  if(error)return msg("ctlMsg","Error: "+esc(error.message));
+  msg("ctlMsg","Timer removed. Voting is open all the time.",1);load();
+}
+async function resetBallot(){
+  if($("rbConfirm").value.trim()!=="RESET")return msg("ctlMsg","Type RESET (capital letters) in the box to confirm.");
+  if(!confirm("This permanently deletes ALL votes and abstains. Students and candidates are kept. Continue?"))return;
+  const {data,error}=await sb.rpc("admin_reset_ballot",{p_admin:adminId});
+  if(error)return msg("ctlMsg","Error: "+esc(error.message)+". Run orgvote_ballot_features.sql in Supabase.");
+  const [st,n,tables]=String(data).split(":");
+  $("rbConfirm").value="";
+  if(st!=="OK")return msg("ctlMsg","Could not reset the ballot.");
+  msg("ctlMsg","Ballot reset. "+esc(n)+" record(s) cleared from: "+esc(tables||"no tables found")+".",1);
+  load();
+}
+
 function render(){
   if(wlSel==="none"&&!wlist.some(w=>w.grade==null))wlSel="all";   // the "No grade" folder emptied out
-  const sections={wl:"vWl",stu:"vStu",cand:"vCand",res:"vRes"};
+  const sections={wl:"vWl",stu:"vStu",cand:"vCand",ctl:"vCtl",res:"vRes"};
   Object.keys(sections).forEach(k=>$(sections[k]).classList.toggle("hide",k!==view));
-  renderSide();renderWhitelist();renderCandidates();renderStudents();renderResults();
+  renderSide();renderWhitelist();renderCandidates();renderStudents();renderResults();renderControl();
 }
 function csv(){
   const rows=[["Candidate","Position","Votes"],...state.candidates.map(c=>[c.name,c.position,c.votes])];
