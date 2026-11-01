@@ -192,11 +192,12 @@ function renderStudents(){
   box.innerHTML=`<div style="overflow-x:auto"><table class="stu"><thead><tr><th>LRN</th><th>Grade</th><th>Gmail</th><th>Status</th><th>Actions</th></tr></thead><tbody>`+
     rows.map(s=>{
       const status=s.verified?`<span class="chip">Verified</span>`:(s.email?`<span class="chip">Unverified</span>`:`<small>No Gmail</small>`);
-      const acts=
-        (s.email&&!s.verified?`<button class="btn sm" onclick="verifyEmail('${s.lrn}',true)">Verify</button>`:"")+
-        (s.verified?`<button class="btn sm alt" onclick="verifyEmail('${s.lrn}',false)">Unverify</button>`:"")+
+      const first=s.verified
+        ?`<button class="btn sm alt" onclick="verifyEmail('${s.lrn}',false)">Unverify</button>`
+        :(s.email?`<button class="btn sm" onclick="verifyEmail('${s.lrn}',true)">Verify</button>`:`<span></span>`);
+      const acts=`<div class="acts">${first}`+
         `<button class="btn sm alt" onclick="editEmail('${s.lrn}')">${s.email?"Edit Gmail":"Add Gmail"}</button>`+
-        `<button class="btn sm" onclick="genOtp('${s.lrn}')">Get OTP</button>`;
+        `<button class="btn sm" onclick="genOtp('${s.lrn}')">Get OTP</button></div>`;
       return `<tr><td>${esc(s.lrn)}</td><td>${esc(String(s.grade==null?"-":s.grade))}</td><td>${s.email?esc(s.email):"<small>none</small>"}</td><td>${status}</td><td>${acts}</td></tr>`;
     }).join("")+`</tbody></table></div>`;
 }

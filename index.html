@@ -44,8 +44,10 @@
     <input id="rcode" inputmode="numeric" maxlength="6" placeholder="123456">
     <label>New password</label>
     <input id="rpw" type="password" placeholder="At least 6 characters">
-    <button class="btn" onclick="resetPassword()">Reset password</button>
-    <button class="btn alt" onclick="hideReset()">Back to login</button>
+    <div class="btnrow">
+      <button class="btn" onclick="resetPassword()">Reset password</button>
+      <button class="btn alt" onclick="hideReset()">Back to login</button>
+    </div>
     <div id="rMsg"></div>
   </div>
 

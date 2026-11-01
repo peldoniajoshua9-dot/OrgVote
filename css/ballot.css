@@ -37,3 +37,7 @@
   .bwrap{grid-template-columns:1fr}
   .bgrid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* Equal-width buttons side by side */
+.btnrow{display:flex;flex-wrap:wrap;gap:10px}
+.btnrow .btn{flex:1 1 140px;margin:0}

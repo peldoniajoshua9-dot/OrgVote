@@ -54,6 +54,10 @@
   table.stu th,table.stu td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
   table.stu th{color:var(--primary-d);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em}
   .btn.sm{min-height:34px;padding:4px 12px;font-size:.85rem;margin:2px}
+  /* Actions column: three equal buttons in fixed slots (Verify, Edit Gmail, Get OTP) */
+  .acts{display:grid;grid-template-columns:repeat(3,104px);gap:6px;align-items:center}
+  .acts .btn{width:100%;margin:0;white-space:nowrap}
+  table.stu td:last-child,table.stu th:last-child{width:1%;white-space:nowrap}
   .row select{margin-bottom:0;width:auto;min-width:150px}
   details.folder{margin:8px 0;padding:8px 14px;background:rgba(127,160,220,.06);border:1px solid var(--line);border-radius:12px}
   details.folder summary{cursor:pointer;font-weight:650;color:var(--primary-d)}
