@@ -1,5 +1,6 @@
 let adminId=null,state=null,students=[],stuErr="",wlist=[],wlNote="",lastError=null;
 let win=null,cphotos={},winTick=null;   // voting timer + candidate photos
+let me=null,admins=[],pr={mine:null,incoming:[],admins:0},prNote="",pollId=null;   // admins + print approval
 let view="res",wlSel="all",wlOpen=false;   // Results opens first; the Whitelist dropdown starts closed
 const openG=new Set();       // whitelist grade folders opened in the "all" view
 const closedC=new Set();     // candidate position windows the admin closed
@@ -22,6 +23,10 @@ async function load(){
   cphotos=p.error?{}:(p.data||{});
   const wd=await sb.rpc("admin_get_window",{p_admin:adminId});
   win=wd.error?null:wd.data;
+  const mm=await sb.rpc("admin_me",{p_admin:adminId});me=mm.error?null:mm.data;
+  const al=await sb.rpc("admin_list_admins",{p_admin:adminId});admins=al.error?[]:(al.data||[]);
+  const pq=await sb.rpc("admin_list_print_requests",{p_admin:adminId});
+  pr=pq.error||!pq.data?{mine:null,incoming:[],admins:0}:pq.data;
   render();return true;
 }
 async function adminLogin(){
@@ -32,9 +37,10 @@ async function adminLogin(){
     const m=lastError&&lastError.message||"";
     return msg("aMsg",m.includes("unauthorized")?"Invalid Admin ID.":"Connection error: "+esc(m||"unknown")+(lastError&&lastError.code?" ("+esc(lastError.code)+")":""));}
   $("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");
+  clearInterval(pollId);pollId=setInterval(pollRequests,10000);   // checks for print requests from other admins
 }
 function adminLogout(){
-  clearInterval(winTick);win=null;cphotos={};
+  clearInterval(winTick);clearInterval(pollId);win=null;cphotos={};me=null;admins=[];pr={mine:null,incoming:[],admins:0};prNote="";document.title="OrgVote Admin";
   adminId=state=null;students=[];wlist=[];view="res";wlSel="all";wlOpen=false;
   $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
   $("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML="";
@@ -55,9 +61,10 @@ function renderSide(){
   const cnt=k=>wlist.filter(w=>(w.grade==null?"none":String(w.grade))===k).length;
   const item=(icon,label,click,on,count,sub)=>
     `<a href="#" class="si${sub?" sub":""}${on?" on":""}" onclick="${click};return false"><span class="ic">${icon}</span><span>${label}</span>${count==null?"":`<span class="chip">${count}</span>`}</a>`;
-  let h=item('<i class="bul sq"></i>',"Results","go('res')",view==="res");
+  let h=(me?`<div style="padding:2px 12px 8px"><small>Signed in as <b>${esc(me.name)}</b></small></div>`:"")+item('<i class="bul sq"></i>',"Results","go('res')",view==="res");
   h+=item('<i class="bul dia"></i>',"Candidates","go('cand')",view==="cand",state.candidates.length);
   h+=item('<i class="bul tm"></i>',"Timer &amp; Reset","go('ctl')",view==="ctl");
+  h+=item('<i class="bul adm"></i>',"Admins","go('adm')",view==="adm",admins.length);
   h+=`<a href="#" class="si${view==="wl"&&wlSel==="all"?" on":""}" onclick="toggleWl();return false"><span class="ic"><i class="bul fold"></i></span><span>Whitelist</span><span class="chip">${wlist.length}</span><span class="caret">${wlOpen?"▾":"▸"}</span></a>`;
   if(wlOpen){   // the dropdown: one folder per grade, each with its own bullet
     ["7","8","9","10","11","12"].forEach(g=>{h+=item(GI[g],"Grade "+g,`go('wl','${g}')`,view==="wl"&&wlSel===g,cnt(g),1)});
@@ -322,11 +329,145 @@ async function resetBallot(){
   load();
 }
 
+// ---- Verified printing: another admin must approve (only after voting ends) ----
+async function pollRequests(){
+  if(!adminId)return;
+  const r=await sb.rpc("admin_list_print_requests",{p_admin:adminId});
+  if(r.error||!r.data)return;
+  pr=r.data;
+  renderNotify();renderPrintStatus();
+}
+function renderNotify(){
+  const el=$("notify");if(!el)return;
+  const inc=(pr&&pr.incoming)||[];
+  el.innerHTML=inc.map(r=>
+    `<div class="card nreq noprint"><div><b>${esc(r.requester_name)}</b> wants to print the official election results. <small>Requested ${esc(new Date(r.created_at).toLocaleTimeString())}</small></div>`+
+    `<div><button class="btn sm" onclick="decidePrint('${r.id}',true)">Approve</button><button class="btn sm alt" onclick="decidePrint('${r.id}',false)">Deny</button></div></div>`).join("");
+  document.title=(inc.length?"("+inc.length+") Print request - ":"")+"OrgVote Admin";
+}
+async function decidePrint(id,ok){
+  if(!ok&&!confirm("Deny this print request?"))return;
+  if(ok&&!confirm("Approve printing the official election results?"))return;
+  const {data,error}=await sb.rpc("admin_decide_print",{p_admin:adminId,p_request:id,p_approve:ok});
+  if(error)return alert("Error: "+error.message);
+  if(data!=="OK")alert({NOT_FOUND:"Request not found.",OWN_REQUEST:"You cannot answer your own request.",NOT_PENDING:"This request is no longer waiting for an answer."}[data]||"Could not save your answer.");
+  pollRequests();
+}
+function notifyLinks(){
+  const others=admins.filter(a=>!a.me&&a.email);
+  if(!others.length)return "";
+  const body="Hello, I am asking to print the official election results in OrgVote. Please open the OrgVote Admin portal and approve or deny my request. It stays open for 30 minutes.";
+  return "<p><small>Notify by Gmail: </small>"+others.map(a=>{
+    const link=("https://mail.google.com/mail/?view=cm&fs=1&to="+encodeURIComponent(a.email)+"&su="+encodeURIComponent("OrgVote: print approval needed")+"&body="+encodeURIComponent(body)).replace(/&/g,"&amp;");
+    return `<a href="${link}" target="_blank" rel="noopener">${esc(a.name)}</a>`;
+  }).join(" · ")+"</p>";
+}
+function renderPrintStatus(){
+  const el=$("printMsg");if(!el)return;
+  const m=pr&&pr.mine;let h="";
+  if(prNote)h+=`<div class="msg err">${esc(prNote)}</div>`;
+  if(m&&m.status==="pending")h+=`<div class="msg ok">Request sent. Waiting for another admin to approve it. This page updates by itself.</div>`+notifyLinks();
+  else if(m&&m.status==="approved")h+=`<div class="msg ok">Approved by <b>${esc(m.decided_name||"another admin")}</b>. You can print now (valid for 15 minutes, one time).</div><button class="btn" onclick="doPrint()">Print the official report</button>`;
+  else if(m&&m.status==="denied")h+=`<div class="msg err">${esc(m.decided_name||"Another admin")} denied the print request.</div>`;
+  el.innerHTML=h;
+}
+async function startPrint(){
+  prNote="";
+  await load();   // refresh the voting state first, in case the timer just ended
+  if(!win||win.state!=="closed"){
+    prNote="Voting has not ended yet. The official report can be printed only after voting ends: set a timer, or use Close voting now under Timer & Reset.";
+    return renderPrintStatus();
+  }
+  const {data,error}=await sb.rpc("admin_request_print",{p_admin:adminId});
+  if(error){prNote="Error: "+error.message+". Run orgvote_admin_approval.sql in the Supabase SQL Editor.";return renderPrintStatus()}
+  const st=String(data).split("|")[0];
+  if(st==="NEED_OTHER_ADMIN")prNote="Printing needs approval from another admin, but there is only one admin. Add a second admin under Admins first.";
+  else if(st==="NOT_CLOSED")prNote="Voting has not ended yet.";
+  else if(st!=="OK")prNote="Could not send the request. Try again.";
+  await pollRequests();renderPrintStatus();
+}
+function buildPrintSheet(code,iso,total,reg,by,appr){
+  const when=new Date(iso).toLocaleString();
+  const closed=win&&win.closes_at?new Date(win.closes_at).toLocaleString():"";
+  const tables=byPosition(state.candidates).map(([p,cs])=>{
+    const rows=cs.slice().sort((a,b)=>Number(b.votes||0)-Number(a.votes||0)||String(a.name).localeCompare(String(b.name)));
+    const sum=rows.reduce((a,c)=>a+Number(c.votes||0),0);
+    return `<h3>${esc(p)}</h3><table><thead><tr><th>Candidate</th><th class="n">Votes</th><th class="n">%</th></tr></thead><tbody>`+
+      rows.map(c=>{const v=Number(c.votes||0);return `<tr><td>${esc(c.name)}</td><td class="n">${v}</td><td class="n">${sum?Math.round(v/sum*100):0}%</td></tr>`}).join("")+
+      `</tbody></table>`;
+  }).join("");
+  $("printSheet").innerHTML=
+    `<h1>OrgVote Official Election Results</h1>`+
+    `<p class="ps-sub">Printed ${esc(when)}${closed?" | Voting closed "+esc(closed):""}</p>`+
+    `<p><b>Total votes cast:</b> ${esc(total)} &nbsp;&nbsp; <b>Registered voters:</b> ${esc(reg)}</p>`+
+    tables+
+    `<div class="ps-ver"><b>Report verification code:</b> <span class="ps-code">${esc(code)}</span><br>`+
+    `<b>Print requested by:</b> ${esc(by)} &nbsp;&nbsp; <b>Approved by:</b> ${esc(appr)}<br>`+
+    `<small>To confirm these results are authentic and unchanged, enter this code under Results, Check a printed report, in the OrgVote Admin portal.</small></div>`+
+    `<div class="ps-sign"><div><span></span>Prepared by: ${esc(by)}</div><div><span></span>Approved by: ${esc(appr)}</div><div><span></span>Verified by (Adviser)</div></div>`;
+}
+async function doPrint(){
+  const m=pr&&pr.mine;
+  if(!m||m.status!=="approved")return;
+  const {data,error}=await sb.rpc("admin_report_print",{p_admin:adminId,p_request:m.id});
+  if(error){prNote="Error: "+error.message;return renderPrintStatus()}
+  const [st,code,iso,total,reg,by,appr]=String(data).split("|");
+  if(st!=="OK"){
+    prNote={NOT_APPROVED:"This request is not approved.",EXPIRED:"The approval expired. Send a new request.",NOT_CLOSED:"Voting has not ended yet.",NOT_FOUND:"Request not found."}[st]||"Could not print. Try again.";
+    await pollRequests();return renderPrintStatus();
+  }
+  prNote="";
+  await load();await pollRequests();   // fresh numbers for the report
+  buildPrintSheet(code,iso,total,reg,by,appr);
+  window.print();
+}
+window.addEventListener("afterprint",()=>{const el=$("printSheet");if(el)el.innerHTML=""});
+
+// ---- Admins ----
+function renderAdmins(){
+  const el=$("admList");if(!el)return;
+  el.innerHTML=admins.map(a=>
+    `<div class="acand"><div class="ainfo"><b>${esc(a.name)}</b>${a.me?" <span class=\"chip\">You</span>":""}<br><small>${a.email?esc(a.email):"No email"}</small></div>`+
+    (a.me?"":`<div style="margin-left:auto"><button class="btn sm alt" onclick="removeAdmin('${a.id}')">Remove</button></div>`)+`</div>`).join("")||"<small>No admins found.</small>";
+}
+async function addAdmin(){
+  const n=$("anName").value.trim(),i=$("anId").value,e=$("anEmail").value.trim();
+  if(!n)return msg("admMsg","Enter a name.");
+  if(i.length<8)return msg("admMsg","The Admin ID must be at least 8 characters.");
+  const {data,error}=await sb.rpc("admin_add_admin",{p_admin:adminId,p_name:n,p_new_id:i,p_email:e||null});
+  if(error)return msg("admMsg","Error: "+esc(error.message)+". Run orgvote_admin_approval.sql in the Supabase SQL Editor.");
+  const m={BAD_NAME:"Enter a valid name.",WEAK_ID:"The Admin ID must be at least 8 characters.",BAD_EMAIL:"Enter a valid email address.",DUPLICATE_ID:"That Admin ID is already used. Choose a different one."}[data];
+  if(data!=="OK")return msg("admMsg",m||"Could not add the admin.");
+  $("anName").value=$("anId").value=$("anEmail").value="";
+  msg("admMsg","Admin added. Give them their Admin ID privately.",1);
+  load();
+}
+async function removeAdmin(id){
+  if(!confirm("Remove this admin? Their Admin ID will stop working."))return;
+  const {data,error}=await sb.rpc("admin_remove_admin",{p_admin:adminId,p_target:id});
+  if(error)return msg("admMsg","Error: "+esc(error.message));
+  if(data==="SELF")return msg("admMsg","You cannot remove yourself.");
+  if(data==="LAST")return msg("admMsg","You cannot remove the last admin.");
+  load();
+}
+
+async function checkReport(){
+  const c=$("chkCode").value.trim();
+  if(!c)return msg("chkMsg","Enter the report code printed on the report.");
+  const {data,error}=await sb.rpc("admin_check_report",{p_admin:adminId,p_code:c});
+  if(error)return msg("chkMsg","Error: "+esc(error.message)+". Run orgvote_report_verify.sql in the Supabase SQL Editor.");
+  const [st,iso,total,reg,cur,by,appr]=String(data).split("|");
+  if(st!=="FOUND")return msg("chkMsg","No report with that code was printed from this system. It may have been altered, or it is from another election.");
+  msg("chkMsg","Valid report. Printed "+esc(new Date(iso).toLocaleString())+" with "+esc(total)+" votes and "+esc(reg)+" registered voters. "+(by?"Requested by "+esc(by)+(appr?", approved by "+esc(appr):"")+". ":"")+
+    (cur==="CURRENT"?"The current results still match this report.":"The current results are different from this report (votes or candidates changed, or the ballot was reset, after it was printed)."),
+    cur==="CURRENT"?1:0);
+}
+
 function render(){
   if(wlSel==="none"&&!wlist.some(w=>w.grade==null))wlSel="all";   // the "No grade" folder emptied out
-  const sections={wl:"vWl",stu:"vStu",cand:"vCand",ctl:"vCtl",res:"vRes"};
+  const sections={wl:"vWl",stu:"vStu",cand:"vCand",ctl:"vCtl",adm:"vAdm",res:"vRes"};
   Object.keys(sections).forEach(k=>$(sections[k]).classList.toggle("hide",k!==view));
-  renderSide();renderWhitelist();renderCandidates();renderStudents();renderResults();renderControl();
+  renderSide();renderWhitelist();renderCandidates();renderStudents();renderResults();renderControl();renderAdmins();renderNotify();renderPrintStatus();
 }
 function csv(){
   const rows=[["Candidate","Position","Votes"],...byPosition(state.candidates).flatMap(([p,cs])=>cs.slice().sort((a,b)=>Number(b.votes||0)-Number(a.votes||0)).map(c=>[c.name,c.position,c.votes]))];
@@ -337,11 +478,13 @@ function csv(){
 
 // Always start at a clean sign-in screen (reload, back button, or a restored tab)
 function resetToSignIn(){
-  clearInterval(winTick);
+  clearInterval(winTick);clearInterval(pollId);me=null;admins=[];pr={mine:null,incoming:[],admins:0};prNote="";document.title="OrgVote Admin";
   adminId=state=null;students=[];wlist=[];win=null;cphotos={};view="res";wlSel="all";wlOpen=false;
   $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
   $("aMsg").innerHTML="";$("otpOut").innerHTML="";
-  ["aid","wl","wgrade","stuSearch","cn","cp","tmStart","rbConfirm"].forEach(id=>{const el=$(id);if(el)el.value=""});
+  ["aid","wl","wgrade","stuSearch","cn","cp","tmStart","rbConfirm","chkCode","anName","anId","anEmail"].forEach(id=>{const el=$(id);if(el)el.value=""});
+  ["printMsg","chkMsg"].forEach(id=>{const el=$(id);if(el)el.innerHTML=""});
+  if($("printSheet"))$("printSheet").innerHTML="";
   window.scrollTo(0,0);
 }
 if("scrollRestoration" in history)history.scrollRestoration="manual";
