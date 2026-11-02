@@ -187,10 +187,52 @@ function renderWhitelist(){
 }
 
 // ---- Candidates (one window per position) ----
-async function addCand(){
-  const n=$("cn").value.trim(),p=$("cp").value.trim();
-  if(!n||!p)return alert("Enter name and position.");
-  await sb.rpc("admin_add_candidate",{p_admin:adminId,p_name:n,p_pos:p});$("cn").value=$("cp").value="";load();
+// ---- Add candidates: pick the party list, type only the names (positions are fixed) ----
+const SLOTS=[["President",1],["Vice President",1],["Secretary",1],["Treasurer",1],["Auditor",1],["Public Information Officer",1],["Business Manager",1],["Peace Officer",1],["Representative",4]];
+let slBusy=false;
+function renderSlate(){
+  const box=$("slate");if(!box)return;
+  if(!box.dataset.built){   // built once, so typed names are not wiped when the page refreshes
+    box.innerHTML=SLOTS.map(([p,n])=>{
+      let ins="";
+      for(let i=0;i<n;i++)ins+=`<input data-pos="${esc(p)}" maxlength="60" placeholder="${n>1?esc(p)+" "+(i+1):"Full name"}">`;
+      return `<div class="slr"><label>${esc(p)}</label><div class="slin">${ins}</div></div>`;
+    }).join("");
+    box.dataset.built="1";
+  }
+  const sel=$("slParty"),cur=sel.value;
+  sel.innerHTML='<option value="">Independent (no party)</option>'+(pdata.list||[]).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  sel.value=cur;
+}
+async function saveSlate(){
+  if(slBusy)return;
+  const party=$("slParty").value,items=[];
+  document.querySelectorAll("#slate input[data-pos]").forEach(el=>{const n=el.value.trim();if(n)items.push({name:n,pos:el.dataset.pos,el})});
+  if(!items.length)return msg("slMsg","Type at least one candidate name.");
+  const have={};   // how many this party already has in each position
+  if(party)state.candidates.forEach(c=>{if(pdata.map[c.id]===party)have[c.position]=(have[c.position]||0)+1});
+  const ok=[],skip=[];
+  items.forEach(it=>{
+    const cap=it.pos==="Representative"?4:1,k=have[it.pos]||0;
+    if(party&&k>=cap)skip.push(it);else{have[it.pos]=k+1;ok.push(it)}
+  });
+  if(!ok.length)return msg("slMsg","Nothing added: "+esc(party)+" already has the maximum for "+[...new Set(skip.map(x=>x.pos))].map(esc).join(", ")+".");
+  slBusy=true;
+  try{
+    const before=new Set(state.candidates.map(c=>String(c.id)));
+    for(const it of ok){
+      const {error}=await sb.rpc("admin_add_candidate",{p_admin:adminId,p_name:it.name,p_pos:it.pos});
+      if(error)return msg("slMsg","Error: "+esc(error.message));
+    }
+    await load();
+    if(party){   // the new candidates are the ones that were not there before
+      const fresh=state.candidates.filter(c=>!before.has(String(c.id)));
+      for(const c of fresh)await sb.rpc("admin_set_candidate_party",{p_admin:adminId,p_candidate:String(c.id),p_party:party});
+      await load();
+    }
+    ok.forEach(it=>{it.el.value=""});
+    msg("slMsg","Added "+ok.length+" candidate"+(ok.length===1?"":"s")+(party?" to "+esc(party):"")+"."+(skip.length?" Skipped "+skip.length+" (that party list is already full for "+[...new Set(skip.map(x=>x.pos))].map(esc).join(", ")+").":""),1);
+  }finally{slBusy=false}
 }
 async function rmCand(id){
   const {data}=await sb.rpc("admin_remove_candidate",{p_admin:adminId,p_id:id});
@@ -218,14 +260,23 @@ function photoTag(c){
   if(p&&/^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(p))return `<img src="${p}" alt="">`;
   return esc(String(c.name||"?").trim().charAt(0).toUpperCase());
 }
-function renderCandidates(){
-  $("cList").innerHTML=byPosition(state.candidates).map(([p,cs])=>
-    `<details class="folder" data-p="${esc(p)}" ${closedC.has(p)?"":"open"} ontoggle="winToggle(this)"><summary><i class="bul dia"></i> ${esc(p)} <span class="chip">${cs.length} candidate${cs.length>1?"s":""}</span></summary><div>`+
-    cs.map(c=>{const has=!!cphotos[c.id];return `<div class="acand"><div class="aph">${photoTag(c)}</div><div class="ainfo"><b>${esc(c.name)}</b>${partySelect(c)}<div>`+
-      `<label class="btn sm alt" style="cursor:pointer">${has?"Change photo":"Add photo"}<input type="file" accept="image/*" hidden onchange="setPhoto('${c.id}',this)"></label>`+
-      (has?`<button class="btn sm alt" onclick="rmPhoto('${c.id}')">Remove photo</button>`:"")+
-      `<button class="btn sm alt" onclick="rmCand('${c.id}')">Delete candidate</button></div></div></div>`}).join("")+
-    `</div></details>`).join("")||"<small>No candidates yet.</small>";
+function candCard(c){
+  const has=!!cphotos[c.id];
+  return `<div class="acand"><div class="aph">${photoTag(c)}</div><div class="ainfo"><b>${esc(c.name)}</b> <small>· ${esc(c.position)}</small>${partySelect(c)}<div>`+
+    `<label class="btn sm alt" style="cursor:pointer">${has?"Change photo":"Add photo"}<input type="file" accept="image/*" hidden onchange="setPhoto('${c.id}',this)"></label>`+
+    (has?`<button class="btn sm alt" onclick="rmPhoto('${c.id}')">Remove photo</button>`:"")+
+    `<button class="btn sm alt" onclick="rmCand('${c.id}')">Delete candidate</button></div></div></div>`;
+}
+function renderCandidates(){   // one folder per party list, candidates ordered President first
+  const by={};
+  state.candidates.forEach(c=>{const p=(pdata.map&&pdata.map[c.id])||"";(by[p]=by[p]||[]).push(c)});
+  const keys=(pdata.list||[]).slice();if(by[""])keys.push("");
+  const sortC=(a,b)=>posRank(a.position)-posRank(b.position)||String(a.name).localeCompare(String(b.name));
+  $("cList").innerHTML=keys.map(k=>{
+    const cs=(by[k]||[]).slice().sort(sortC),title=k||"Independent (no party)";
+    return `<details class="folder" data-p="${esc(title)}" ${closedC.has(title)?"":"open"} ontoggle="winToggle(this)"><summary><i class="bul dia"></i> ${esc(title)} <span class="chip">${cs.length} candidate${cs.length===1?"":"s"}</span></summary><div>`+
+      (cs.map(candCard).join("")||"<small>No candidates in this party list yet.</small>")+`</div></details>`;
+  }).join("")||"<small>No candidates yet.</small>";
 }
 
 // ---- Student Gmail verification + one-time password ----
@@ -576,7 +627,7 @@ function render(){
   if(wlSel==="none"&&!wlist.some(w=>w.grade==null))wlSel="all";   // the "No grade" folder emptied out
   const sections={wl:"vWl",stu:"vStu",cand:"vCand",ctl:"vCtl",adm:"vAdm",res:"vRes"};
   Object.keys(sections).forEach(k=>$(sections[k]).classList.toggle("hide",k!==view));
-  renderSide();renderWhitelist();renderCandidates();renderParties();renderStudents();renderResults();renderControl();renderAdmins();renderNotify();renderPrintStatus();
+  renderSide();renderWhitelist();renderCandidates();renderParties();renderSlate();renderStudents();renderResults();renderControl();renderAdmins();renderNotify();renderPrintStatus();
 }
 function csv(){
   const rows=[["Candidate","Position","Votes"],...byPosition(state.candidates).flatMap(([p,cs])=>cs.slice().sort((a,b)=>Number(b.votes||0)-Number(a.votes||0)).map(c=>[c.name,c.position,c.votes]))];

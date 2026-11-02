@@ -52,6 +52,10 @@
     .si.out{margin-top:0;padding-top:9px;border-top:0;border-radius:10px}
   }
 
+  .slr{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:8px 0}
+  .slr > label{flex:0 0 200px;margin:0;font-weight:600}
+  .slin{display:flex;flex-wrap:wrap;gap:8px;flex:1;min-width:200px}
+  .slin input{margin:0;flex:1;min-width:150px}
   table.stu{width:100%;border-collapse:collapse;font-size:.92rem}
   table.stu th,table.stu td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
   table.stu th{color:var(--primary-d);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em}
@@ -133,11 +137,17 @@
 
         <div id="vCand" class="card hide">
           <h2>Candidate Information</h2>
-          <div class="row"><input id="cn" placeholder="Name"><input id="cp" placeholder="Position"><button class="btn" onclick="addCand()">Add</button></div>
           <h3 class="pos">Party lists</h3>
           <div class="row"><input id="ptn" maxlength="40" placeholder="Party list name"><button class="btn" onclick="addParty()">Add party</button></div>
           <div id="ptList" style="margin:6px 0 14px"></div>
-          <div id="cList" style="margin-top:10px"></div>
+          <h3 class="pos">Add candidates</h3>
+          <label>Party list</label>
+          <select id="slParty"><option value="">Independent (no party)</option></select>
+          <p><small>Pick the party list, then type only the names. Leave a position empty to skip it. Each party list can have 1 candidate per position and up to 4 Representatives.</small></p>
+          <div id="slate"></div>
+          <button class="btn" onclick="saveSlate()">Add candidates</button>
+          <div id="slMsg"></div>
+          <div id="cList" style="margin-top:14px"></div>
         </div>
 
         <div id="vCtl" class="card noprint hide">
