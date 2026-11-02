@@ -1,6 +1,7 @@
 let adminId=null,state=null,students=[],stuErr="",wlist=[],wlNote="",lastError=null;
 let win=null,cphotos={},winTick=null;   // voting timer + candidate photos
 let me=null,admins=[],pr={mine:null,incoming:[],admins:0},prNote="",pollId=null;   // admins + print approval
+let syncV=null,syncVotes=null,syncBusy=false;   // detects changes made by another admin
 let view="res",wlSel="all",wlOpen=false;   // Results opens first; the Whitelist dropdown starts closed
 const openG=new Set();       // whitelist grade folders opened in the "all" view
 const closedC=new Set();     // candidate position windows the admin closed
@@ -27,6 +28,8 @@ async function load(){
   const al=await sb.rpc("admin_list_admins",{p_admin:adminId});admins=al.error?[]:(al.data||[]);
   const pq=await sb.rpc("admin_list_print_requests",{p_admin:adminId});
   pr=pq.error||!pq.data?{mine:null,incoming:[],admins:0}:pq.data;
+  const sy=await sb.rpc("admin_sync",{p_admin:adminId});
+  if(!sy.error&&sy.data){syncV=sy.data.v;syncVotes=sy.data.votes}
   render();return true;
 }
 async function adminLogin(){
@@ -37,10 +40,10 @@ async function adminLogin(){
     const m=lastError&&lastError.message||"";
     return msg("aMsg",m.includes("unauthorized")?"Invalid Admin ID.":"Connection error: "+esc(m||"unknown")+(lastError&&lastError.code?" ("+esc(lastError.code)+")":""));}
   $("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");
-  clearInterval(pollId);pollId=setInterval(pollRequests,10000);   // checks for print requests from other admins
+  clearInterval(pollId);pollId=setInterval(pollSync,6000);   // checks for print requests from other admins
 }
 function adminLogout(){
-  clearInterval(winTick);clearInterval(pollId);win=null;cphotos={};me=null;admins=[];pr={mine:null,incoming:[],admins:0};prNote="";document.title="OrgVote Admin";
+  clearInterval(winTick);clearInterval(pollId);win=null;cphotos={};me=null;admins=[];pr={mine:null,incoming:[],admins:0};prNote="";document.title="OrgVote Admin";syncV=syncVotes=null;
   adminId=state=null;students=[];wlist=[];view="res";wlSel="all";wlOpen=false;
   $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
   $("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML="";
@@ -51,6 +54,7 @@ function go(v,sel){
   view=v;
   if(v==="wl"){wlSel=sel||"all";wlOpen=true;if(/^\d+$/.test(wlSel))$("wgrade").value=wlSel;}
   render();window.scrollTo({top:0,behavior:"smooth"});
+  if(v==="res"||v==="ctl")load();   // pick up changes the other admin made
 }
 function toggleWl(){
   if(view!=="wl"){view="wl";wlSel="all";wlOpen=true;}   // first click opens the Whitelist and its dropdown
@@ -337,6 +341,20 @@ async function pollRequests(){
   pr=r.data;
   renderNotify();renderPrintStatus();
 }
+// Every 6 seconds: refresh print requests, and reload everything if ANOTHER admin changed something
+async function pollSync(){
+  if(!adminId||syncBusy)return;
+  syncBusy=true;
+  try{
+    await pollRequests();
+    const s=await sb.rpc("admin_sync",{p_admin:adminId});
+    if(s.error||!s.data||syncV===null)return;
+    const changed=s.data.v!==syncV;
+    const votesChanged=s.data.votes!==syncVotes&&view==="res";   // keep live results fresh on the Results page
+    if(changed||votesChanged)await load();                        // load() also resets the baseline
+    else syncVotes=s.data.votes;
+  }finally{syncBusy=false}
+}
 function renderNotify(){
   const el=$("notify");if(!el)return;
   const inc=(pr&&pr.incoming)||[];
@@ -478,7 +496,7 @@ function csv(){
 
 // Always start at a clean sign-in screen (reload, back button, or a restored tab)
 function resetToSignIn(){
-  clearInterval(winTick);clearInterval(pollId);me=null;admins=[];pr={mine:null,incoming:[],admins:0};prNote="";document.title="OrgVote Admin";
+  clearInterval(winTick);clearInterval(pollId);me=null;admins=[];pr={mine:null,incoming:[],admins:0};prNote="";document.title="OrgVote Admin";syncV=syncVotes=null;
   adminId=state=null;students=[];wlist=[];win=null;cphotos={};view="res";wlSel="all";wlOpen=false;
   $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
   $("aMsg").innerHTML="";$("otpOut").innerHTML="";
