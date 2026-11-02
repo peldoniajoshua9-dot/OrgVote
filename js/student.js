@@ -1,4 +1,5 @@
 let user=null,pass=null;
+let pmap={};   // candidate id -> party list name
 let cands=[],photos={},picked=null,vstatus=null,timerId=null;
 // Order of offices, highest first. Anything not listed goes after these, A to Z.
 const POS_GROUPS=[["president"],["vice president","vp"],["secretary"],["treasurer"],["auditor"],["public information officer","pio"],["business manager"],["peace officer","sergeant at arms","sergeant"],["representative","rep"]];
@@ -107,6 +108,7 @@ function photoHtml(x){
     ?`<img src="${p}" alt="">`
     :`<div class="bini">${esc(initials(x.name))}</div>`;
 }
+function partyLine(x){const p=pmap[x.id];return p?`<div class="bparty" style="font-size:.8rem;opacity:.75;margin-top:2px">${esc(p)}</div>`:""}
 async function renderBallot(){
   const st=await sb.rpc("voting_status");
   vstatus=st.error?null:st.data;   // if the timer SQL has not been run, voting simply stays open
@@ -115,12 +117,14 @@ async function renderBallot(){
   if(stt==="upcoming"){$("ballot").innerHTML="<p>Voting has not started yet. This page updates by itself when voting opens.</p>";return}
   if(stt==="closed"){$("ballot").innerHTML="<p>Voting is closed. Thank you for taking part.</p>";return}
 
-  const [c,v,ph]=await Promise.all([
+  const [c,v,ph,pp]=await Promise.all([
     sb.rpc("ballot_candidates",{p_lrn:user,p_pw:pass}),
     sb.rpc("my_ballot",{p_lrn:user,p_pw:pass}),
-    sb.rpc("ballot_photos",{p_lrn:user,p_pw:pass})
+    sb.rpc("ballot_photos",{p_lrn:user,p_pw:pass}),
+    sb.rpc("ballot_parties")
   ]);
   if(c.error)return msg("vMsg","Ballot error: "+esc(c.error.message));
+  pmap=(!pp.error&&pp.data)?pp.data:{};   // if the party SQL has not been run, no party is shown
   photos={};if(!ph.error)(ph.data||[]).forEach(p=>{photos[p.id]=p.photo});
   const list=c.data||[],mine=v.data||[];
   cands=list;picked=null;
@@ -132,14 +136,14 @@ async function renderBallot(){
     $("ballot").innerHTML="<p>You have answered all positions. Thank you!</p>"+
       offices.map(o=>{
         const cand=list.find(x=>x.id===done.get(o));
-        return `<div class="cand"><div><b>${esc(o)}</b><br><small>${cand?esc(cand.name):"No candidate selected"}</small></div><span class="chip">${cand?"Your vote":"Abstained"}</span></div>`;
+        return `<div class="cand"><div><b>${esc(o)}</b><br><small>${cand?esc(cand.name)+(pmap[cand.id]?" · "+esc(pmap[cand.id]):""):"No candidate selected"}</small></div><span class="chip">${cand?"Your vote":"Abstained"}</span></div>`;
       }).join("");
     return;
   }
   const n=offices.filter(o=>done.has(o)).length+1;
   const after=offices.find(o=>!done.has(o)&&o!==next);
   const cards=list.filter(x=>x.office===next).map(x=>
-    `<button type="button" class="bcard" data-id="${x.id}" onclick="pick('${x.id}')"><span class="bchk"></span><div class="bph">${photoHtml(x)}</div><div class="bname">${esc(x.name)}</div></button>`).join("");
+    `<button type="button" class="bcard" data-id="${x.id}" onclick="pick('${x.id}')"><span class="bchk"></span><div class="bph">${photoHtml(x)}</div><div class="bname">${esc(x.name)}</div>${partyLine(x)}</button>`).join("");
   $("ballot").innerHTML=
     `<div class="bh"><span>${esc(next)}</span><small>Position ${n} of ${offices.length}</small></div>`+
     `<p class="bhint">Pick 1 candidate for ${esc(next)}. Click a photo to select it, and click it again to deselect.</p>`+

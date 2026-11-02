@@ -1,4 +1,5 @@
 let adminId=null,state=null,students=[],stuErr="",wlist=[],wlNote="",lastError=null;
+let pdata={list:[],map:{}};   // party lists + which candidate is in which party
 let win=null,cphotos={},winTick=null;   // voting timer + candidate photos
 let me=null,admins=[],pr={mine:null,incoming:[],admins:0},prNote="",pollId=null;   // admins + print approval
 let syncV=null,syncVotes=null,syncBusy=false;   // detects changes made by another admin
@@ -22,6 +23,8 @@ async function load(){
   }else{wlist=w.data||[];wlNote="";}
   const p=await sb.rpc("admin_list_candidate_photos",{p_admin:adminId});
   cphotos=p.error?{}:(p.data||{});
+  const pt=await sb.rpc("admin_list_parties",{p_admin:adminId});
+  pdata=pt.error||!pt.data?{list:[],map:{}}:pt.data;
   const wd=await sb.rpc("admin_get_window",{p_admin:adminId});
   win=wd.error?null:wd.data;
   const mm=await sb.rpc("admin_me",{p_admin:adminId});me=mm.error?null:mm.data;
@@ -218,7 +221,7 @@ function photoTag(c){
 function renderCandidates(){
   $("cList").innerHTML=byPosition(state.candidates).map(([p,cs])=>
     `<details class="folder" data-p="${esc(p)}" ${closedC.has(p)?"":"open"} ontoggle="winToggle(this)"><summary><i class="bul dia"></i> ${esc(p)} <span class="chip">${cs.length} candidate${cs.length>1?"s":""}</span></summary><div>`+
-    cs.map(c=>{const has=!!cphotos[c.id];return `<div class="acand"><div class="aph">${photoTag(c)}</div><div class="ainfo"><b>${esc(c.name)}</b><div>`+
+    cs.map(c=>{const has=!!cphotos[c.id];return `<div class="acand"><div class="aph">${photoTag(c)}</div><div class="ainfo"><b>${esc(c.name)}</b>${partySelect(c)}<div>`+
       `<label class="btn sm alt" style="cursor:pointer">${has?"Change photo":"Add photo"}<input type="file" accept="image/*" hidden onchange="setPhoto('${c.id}',this)"></label>`+
       (has?`<button class="btn sm alt" onclick="rmPhoto('${c.id}')">Remove photo</button>`:"")+
       `<button class="btn sm alt" onclick="rmCand('${c.id}')">Delete candidate</button></div></div></div>`}).join("")+
@@ -286,9 +289,46 @@ function renderResults(){
         rows.map(c=>{
           const v=Number(c.votes||0),pc=sum?Math.round(v/sum*100):0;
           const tag=top>0&&v===top?`<span class="chip">${leaders>1?"Tied":(closed?"Winner":"Leading")}</span>`:"";
-          return `<div style="margin:10px 0"><b>${esc(c.name)}</b> ${tag} - ${v} vote${v===1?"":"s"} (${pc}%)<div class="bar"><i style="width:${pc}%"></i></div></div>`;
+          return `<div style="margin:10px 0"><b>${esc(c.name)}</b>${pTag(c)} ${tag} - ${v} vote${v===1?"":"s"} (${pc}%)<div class="bar"><i style="width:${pc}%"></i></div></div>`;
         }).join("");
     }).join("");
+}
+
+// ---- Party lists ----
+function pTag(c){const p=pdata.map&&pdata.map[c.id];return p?` <small>(${esc(p)})</small>`:""}
+function partySelect(c){
+  const cur=(pdata.map&&pdata.map[c.id])||"";
+  return `<div><select onchange="setParty('${c.id}',this.value)" style="margin:4px 0;width:auto;min-width:170px"><option value="">Independent (no party)</option>`+
+    (pdata.list||[]).map(n=>`<option value="${esc(n)}"${n===cur?" selected":""}>${esc(n)}</option>`).join("")+`</select></div>`;
+}
+function renderParties(){
+  const el=$("ptList");if(!el)return;
+  const list=pdata.list||[];
+  el.innerHTML=list.length?list.map(n=>{
+    const k=state.candidates.filter(c=>pdata.map[c.id]===n).length;
+    return `<span class="chip">${esc(n)} <small>${k} candidate${k===1?"":"s"}</small> <a href="#" title="Delete this party list" data-n="${esc(n)}" onclick="rmParty(this.dataset.n);return false">×</a></span>`;
+  }).join(""):"<small>No party lists yet. Add one, then pick it for each candidate below.</small>";
+}
+async function addParty(){
+  const n=$("ptn").value.trim();
+  if(!n)return alert("Enter the party list name.");
+  const {data,error}=await sb.rpc("admin_add_party",{p_admin:adminId,p_name:n});
+  if(error)return alert("Error: "+error.message+"\nRun orgvote_party_list.sql in the Supabase SQL Editor.");
+  if(data==="EXISTS")return alert("That party list already exists.");
+  if(data!=="OK")return alert("Enter a party name of 1 to 40 characters.");
+  $("ptn").value="";load();
+}
+async function rmParty(n){
+  if(!confirm("Delete the party list \""+n+"\"? Its candidates stay, but become independent."))return;
+  const {error}=await sb.rpc("admin_remove_party",{p_admin:adminId,p_name:n});
+  if(error)return alert("Error: "+error.message);
+  load();
+}
+async function setParty(id,party){
+  const {data,error}=await sb.rpc("admin_set_candidate_party",{p_admin:adminId,p_candidate:String(id),p_party:party});
+  if(error)return alert("Error: "+error.message+"\nRun orgvote_party_list.sql in the Supabase SQL Editor.");
+  if(data!=="OK")alert("Could not set the party.");
+  load();
 }
 
 // ---- Candidate photos ----
@@ -536,7 +576,7 @@ function render(){
   if(wlSel==="none"&&!wlist.some(w=>w.grade==null))wlSel="all";   // the "No grade" folder emptied out
   const sections={wl:"vWl",stu:"vStu",cand:"vCand",ctl:"vCtl",adm:"vAdm",res:"vRes"};
   Object.keys(sections).forEach(k=>$(sections[k]).classList.toggle("hide",k!==view));
-  renderSide();renderWhitelist();renderCandidates();renderStudents();renderResults();renderControl();renderAdmins();renderNotify();renderPrintStatus();
+  renderSide();renderWhitelist();renderCandidates();renderParties();renderStudents();renderResults();renderControl();renderAdmins();renderNotify();renderPrintStatus();
 }
 function csv(){
   const rows=[["Candidate","Position","Votes"],...byPosition(state.candidates).flatMap(([p,cs])=>cs.slice().sort((a,b)=>Number(b.votes||0)-Number(a.votes||0)).map(c=>[c.name,c.position,c.votes]))];
