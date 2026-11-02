@@ -188,7 +188,7 @@ function renderWhitelist(){
 
 // ---- Candidates (one window per position) ----
 // ---- Add candidates: pick the party list, type only the names (positions are fixed) ----
-const SLOTS=[["President",1],["Vice President",1],["Secretary",1],["Treasurer",1],["Auditor",1],["Public Information Officer",1],["Business Manager",1],["Peace Officer",1],["Representative",4]];
+const SLOTS=[["President",1],["Vice President",1],["Secretary",1],["Treasurer",1],["Auditor",1],["Public Information Officer",1],["Business Manager",1],["Peace Officer",1],["Grade 7 Representative",2],["Grade 8 Representative",2],["Grade 9 Representative",2],["Grade 10 Representative",2],["Grade 11 Representative",2],["Grade 12 Representative",2]];
 let slBusy=false;
 function renderSlate(){
   const box=$("slate");if(!box)return;
@@ -213,7 +213,7 @@ async function saveSlate(){
   if(party)state.candidates.forEach(c=>{if(pdata.map[c.id]===party)have[c.position]=(have[c.position]||0)+1});
   const ok=[],skip=[];
   items.forEach(it=>{
-    const cap=it.pos==="Representative"?4:1,k=have[it.pos]||0;
+    const cap=(SLOTS.find(x=>x[0]===it.pos)||[0,1])[1],k=have[it.pos]||0;
     if(party&&k>=cap)skip.push(it);else{have[it.pos]=k+1;ok.push(it)}
   });
   if(!ok.length)return msg("slMsg","Nothing added: "+esc(party)+" already has the maximum for "+[...new Set(skip.map(x=>x.pos))].map(esc).join(", ")+".");
