@@ -65,10 +65,10 @@ function renderSide(){
   const cnt=k=>wlist.filter(w=>(w.grade==null?"none":String(w.grade))===k).length;
   const item=(icon,label,click,on,count,sub)=>
     `<a href="#" class="si${sub?" sub":""}${on?" on":""}" onclick="${click};return false"><span class="ic">${icon}</span><span>${label}</span>${count==null?"":`<span class="chip">${count}</span>`}</a>`;
-  let h=(me?`<div style="padding:2px 12px 8px"><small>Signed in as <b>${esc(me.name)}</b></small></div>`:"")+item('<i class="bul sq"></i>',"Results","go('res')",view==="res");
+  let h=(me?`<div style="padding:2px 12px 8px"><small>Signed in as <b>${esc(me.name)}</b>${me.role==="main"?" (Main Admin)":""}</small></div>`:"")+item('<i class="bul sq"></i>',"Results","go('res')",view==="res");
   h+=item('<i class="bul dia"></i>',"Candidates","go('cand')",view==="cand",state.candidates.length);
   h+=item('<i class="bul tm"></i>',"Timer &amp; Reset","go('ctl')",view==="ctl");
-  h+=item('<i class="bul adm"></i>',"Admins","go('adm')",view==="adm",admins.length);
+  if(me&&me.role==="main")h+=item('<i class="bul adm"></i>',"Admins","go('adm')",view==="adm",admins.length);
   h+=`<a href="#" class="si${view==="wl"&&wlSel==="all"?" on":""}" onclick="toggleWl();return false"><span class="ic"><i class="bul fold"></i></span><span>Whitelist</span><span class="chip">${wlist.length}</span><span class="caret">${wlOpen?"▾":"▸"}</span></a>`;
   if(wlOpen){   // the dropdown: one folder per grade, each with its own bullet
     ["7","8","9","10","11","12"].forEach(g=>{h+=item(GI[g],"Grade "+g,`go('wl','${g}')`,view==="wl"&&wlSel===g,cnt(g),1)});
@@ -368,11 +368,11 @@ async function decidePrint(id,ok){
   if(ok&&!confirm("Approve printing the official election results?"))return;
   const {data,error}=await sb.rpc("admin_decide_print",{p_admin:adminId,p_request:id,p_approve:ok});
   if(error)return alert("Error: "+error.message);
-  if(data!=="OK")alert({NOT_FOUND:"Request not found.",OWN_REQUEST:"You cannot answer your own request.",NOT_PENDING:"This request is no longer waiting for an answer."}[data]||"Could not save your answer.");
+  if(data!=="OK")alert({NOT_FOUND:"Request not found.",OWN_REQUEST:"You cannot answer your own request.",NOT_PENDING:"This request is no longer waiting for an answer.",NOT_MAIN:"Only the Main Admin can answer print requests."}[data]||"Could not save your answer.");
   pollRequests();
 }
 function notifyLinks(){
-  const others=admins.filter(a=>!a.me&&a.email);
+  const others=admins.filter(a=>a.role==="main"&&!a.me&&a.email);   // the Main Admin is the one who approves
   if(!others.length)return "";
   const body="Hello, I am asking to print the official election results in OrgVote. Please open the OrgVote Admin portal and approve or deny my request. It stays open for 30 minutes.";
   return "<p><small>Notify by Gmail: </small>"+others.map(a=>{
@@ -384,7 +384,7 @@ function renderPrintStatus(){
   const el=$("printMsg");if(!el)return;
   const m=pr&&pr.mine;let h="";
   if(prNote)h+=`<div class="msg err">${esc(prNote)}</div>`;
-  if(m&&m.status==="pending")h+=`<div class="msg ok">Request sent. Waiting for another admin to approve it. This page updates by itself.</div>`+notifyLinks();
+  if(m&&m.status==="pending")h+=`<div class="msg ok">Request sent. Waiting for the Main Admin (supervisor) to approve it. This page updates by itself.</div>`+notifyLinks();
   else if(m&&m.status==="approved")h+=`<div class="msg ok">Approved by <b>${esc(m.decided_name||"another admin")}</b>. You can print now (valid for 15 minutes, one time).</div><button class="btn" onclick="doPrint()">Print the official report</button>`;
   else if(m&&m.status==="denied")h+=`<div class="msg err">${esc(m.decided_name||"Another admin")} denied the print request.</div>`;
   el.innerHTML=h;
@@ -445,7 +445,7 @@ window.addEventListener("afterprint",()=>{const el=$("printSheet");if(el)el.inne
 function renderAdmins(){
   const el=$("admList");if(!el)return;
   el.innerHTML=admins.map(a=>
-    `<div class="acand"><div class="ainfo"><b>${esc(a.name)}</b>${a.me?" <span class=\"chip\">You</span>":""}<br><small>${a.email?esc(a.email):"No email"}</small></div>`+
+    `<div class="acand"><div class="ainfo"><b>${esc(a.name)}</b>${a.role==="main"?" <span class=\"chip\">Main Admin</span>":""}${a.me?" <span class=\"chip\">You</span>":""}<br><small>${a.email?esc(a.email):"No email"}</small></div>`+
     (a.me?"":`<div style="margin-left:auto"><button class="btn sm alt" onclick="removeAdmin('${a.id}')">Remove</button></div>`)+`</div>`).join("")||"<small>No admins found.</small>";
 }
 async function addAdmin(){
@@ -454,7 +454,7 @@ async function addAdmin(){
   if(i.length<8)return msg("admMsg","The Admin ID must be at least 8 characters.");
   const {data,error}=await sb.rpc("admin_add_admin",{p_admin:adminId,p_name:n,p_new_id:i,p_email:e||null});
   if(error)return msg("admMsg","Error: "+esc(error.message)+". Run orgvote_admin_approval.sql in the Supabase SQL Editor.");
-  const m={BAD_NAME:"Enter a valid name.",WEAK_ID:"The Admin ID must be at least 8 characters.",BAD_EMAIL:"Enter a valid email address.",DUPLICATE_ID:"That Admin ID is already used. Choose a different one."}[data];
+  const m={BAD_NAME:"Enter a valid name.",WEAK_ID:"The Admin ID must be at least 8 characters.",BAD_EMAIL:"Enter a valid email address.",DUPLICATE_ID:"That Admin ID is already used. Choose a different one.",NOT_MAIN:"Only the Main Admin can add admins."}[data];
   if(data!=="OK")return msg("admMsg",m||"Could not add the admin.");
   $("anName").value=$("anId").value=$("anEmail").value="";
   msg("admMsg","Admin added. Give them their Admin ID privately.",1);
@@ -465,7 +465,7 @@ async function removeAdmin(id){
   const {data,error}=await sb.rpc("admin_remove_admin",{p_admin:adminId,p_target:id});
   if(error)return msg("admMsg","Error: "+esc(error.message));
   if(data==="SELF")return msg("admMsg","You cannot remove yourself.");
-  if(data==="LAST")return msg("admMsg","You cannot remove the last admin.");
+  if(data==="NOT_MAIN")return msg("admMsg","Only the Main Admin can remove admins.");
   load();
 }
 
@@ -482,6 +482,7 @@ async function checkReport(){
 }
 
 function render(){
+  if(view==="adm"&&!(me&&me.role==="main"))view="res";   // only the Main Admin manages admins
   if(wlSel==="none"&&!wlist.some(w=>w.grade==null))wlSel="all";   // the "No grade" folder emptied out
   const sections={wl:"vWl",stu:"vStu",cand:"vCand",ctl:"vCtl",adm:"vAdm",res:"vRes"};
   Object.keys(sections).forEach(k=>$(sections[k]).classList.toggle("hide",k!==view));
