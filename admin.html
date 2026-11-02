@@ -140,6 +140,10 @@
           <h3 class="pos">Party lists</h3>
           <div class="row"><input id="ptn" maxlength="40" placeholder="Party list name"><button class="btn" onclick="addParty()">Add party</button></div>
           <div id="ptList" style="margin:6px 0 14px"></div>
+          <h3 class="pos">Import from CSV</h3>
+          <p><small>Columns: Party, Position, Name. Rows with an empty Name are skipped. New party lists are created automatically, and names already on the ballot are not added twice.</small></p>
+          <label class="btn" style="cursor:pointer">Choose CSV file<input type="file" accept=".csv,text/csv" hidden onchange="importCSV(this)"></label>
+          <div id="impMsg"></div>
           <h3 class="pos">Add candidates</h3>
           <label>Party list</label>
           <select id="slParty"><option value="">Independent (no party)</option></select>

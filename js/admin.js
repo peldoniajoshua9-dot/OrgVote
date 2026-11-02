@@ -234,6 +234,86 @@ async function saveSlate(){
     msg("slMsg","Added "+ok.length+" candidate"+(ok.length===1?"":"s")+(party?" to "+esc(party):"")+"."+(skip.length?" Skipped "+skip.length+" (that party list is already full for "+[...new Set(skip.map(x=>x.pos))].map(esc).join(", ")+").":""),1);
   }finally{slBusy=false}
 }
+// ---- Import candidates from a CSV file (Party, Position, Name) ----
+function parseCSV(t){
+  t=String(t).replace(/^\uFEFF/,"");
+  const first=t.split(/\r?\n/)[0]||"",d=(first.includes(";")&&!first.includes(","))?";":",";   // Excel in some regions saves with ;
+  const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===d){row.push(f);f=""}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&t[i+1]==="\n")i++;row.push(f);rows.push(row);row=[];f=""}
+    else f+=c;
+  }
+  if(f!==""||row.length){row.push(f);rows.push(row)}
+  return rows.filter(r=>r.some(x=>String(x).trim()));
+}
+async function importCSV(input){   // wrapper: always shows what is happening, and any error
+  const f=input.files&&input.files[0];
+  if(!f)return;
+  if(slBusy){input.value="";return msg("impMsg","Please wait, another save is still running.")}
+  msg("impMsg","Reading "+esc(f.name)+"...",1);
+  try{await importCSV2(input)}catch(e){msg("impMsg","Import error: "+esc(e&&e.message||String(e)))}
+}
+async function importCSV2(input){
+  const file=input.files&&input.files[0];input.value="";
+  if(!file)return;
+  let rows;try{rows=parseCSV(await file.text())}catch(e){return msg("impMsg","Could not read that file.")}
+  if(!rows.length)return msg("impMsg","The file is empty.");
+  const head=rows[0].map(x=>String(x).trim().toLowerCase());
+  const hasHead=head.includes("name")&&head.includes("position");
+  const ip=hasHead?head.indexOf("party"):0,ipos=hasHead?head.indexOf("position"):1,inm=hasHead?head.indexOf("name"):2;
+  const items=[],problems=[];
+  rows.slice(hasHead?1:0).forEach((r,i)=>{
+    const party=String(r[ip]||"").trim(),pos=String(r[ipos]||"").trim(),name=String(r[inm]||"").trim();
+    if(!name)return;   // empty template rows are skipped
+    const slot=SLOTS.find(x=>x[0].toLowerCase()===pos.toLowerCase());
+    if(!slot){problems.push("\""+pos+"\" is not a valid position (row "+(i+(hasHead?2:1))+")");return}
+    const known=(pdata.list||[]).find(n=>n.toLowerCase()===party.toLowerCase());
+    items.push({party:/^(independent|none|n\/a)?$/i.test(party)?"":(known||party),pos:slot[0],name,cap:slot[1]});
+  });
+  if(!items.length)return msg("impMsg",(problems.length?problems.map(esc).join("<br>")+"<br>":"")+"No candidates to import. The Name column is empty: type the candidates' names in the CSV first, save it, then choose it again.");
+  // skip names already on the ballot, and respect the per-party limits
+  const have={},exists=new Set();
+  state.candidates.forEach(c=>{
+    exists.add((c.name+"|"+c.position).toLowerCase());
+    const pa=(pdata.map&&pdata.map[c.id])||"";if(pa)have[pa+"|"+c.position]=(have[pa+"|"+c.position]||0)+1;
+  });
+  const ok=[],dup=[],full=[];
+  items.forEach(it=>{
+    const key=(it.name+"|"+it.pos).toLowerCase(),hk=it.party+"|"+it.pos;
+    if(exists.has(key)){dup.push(it);return}
+    if(it.party&&(have[hk]||0)>=it.cap){full.push(it);return}
+    exists.add(key);if(it.party)have[hk]=(have[hk]||0)+1;ok.push(it);
+  });
+  if(!ok.length)return msg("impMsg","Nothing new to add. "+dup.length+" already on the ballot, "+full.length+" over the limit."+(problems.length?"<br>"+problems.map(esc).join("<br>"):""));
+  const newParties=[...new Set(ok.map(x=>x.party).filter(p=>p&&!(pdata.list||[]).some(n=>n.toLowerCase()===p.toLowerCase())))];
+  if(!confirm("Import "+ok.length+" candidate"+(ok.length===1?"":"s")+"?"+(newParties.length?"\n\nNew party lists to create: "+newParties.join(", "):"")+(dup.length+full.length+problems.length?"\n\nSkipped: "+(dup.length+full.length+problems.length):"")))return;
+  slBusy=true;
+  try{
+    for(const n of newParties){
+      const {error}=await sb.rpc("admin_add_party",{p_admin:adminId,p_name:n});
+      if(error)return msg("impMsg","Error: "+esc(error.message)+"<br>Run orgvote_party_list.sql in the Supabase SQL Editor first.");
+    }
+    const before=new Set(state.candidates.map(c=>String(c.id)));
+    for(const it of ok){
+      const {error}=await sb.rpc("admin_add_candidate",{p_admin:adminId,p_name:it.name,p_pos:it.pos});
+      if(error)return msg("impMsg","Error: "+esc(error.message));
+    }
+    await load();
+    const pool=ok.slice();   // match each new candidate back to its row to set the party
+    for(const c of state.candidates.filter(c=>!before.has(String(c.id)))){
+      const i=pool.findIndex(it=>it.name.toLowerCase()===String(c.name).trim().toLowerCase()&&it.pos===c.position);
+      if(i<0)continue;
+      const it=pool.splice(i,1)[0];
+      if(it.party)await sb.rpc("admin_set_candidate_party",{p_admin:adminId,p_candidate:String(c.id),p_party:it.party});
+    }
+    await load();
+    msg("impMsg","Imported "+ok.length+" candidate"+(ok.length===1?"":"s")+"."+(dup.length?" "+dup.length+" already on the ballot.":"")+(full.length?" "+full.length+" skipped (party list full for that position).":"")+(problems.length?"<br>"+problems.map(esc).join("<br>"):""),1);
+  }finally{slBusy=false}
+}
 async function rmCand(id){
   const {data}=await sb.rpc("admin_remove_candidate",{p_admin:adminId,p_id:id});
   if(data==="VOTING_STARTED")alert("Candidates can't be removed once voting has started.");load();
