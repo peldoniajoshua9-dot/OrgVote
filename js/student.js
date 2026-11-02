@@ -12,27 +12,43 @@ function posRank(p){
   return hit?hit[1]+(asst?0.5:0):100;
 }
 
+function showRegister(){
+  $("sAuth").classList.add("hide");$("sReset").classList.add("hide");$("sRegister").classList.remove("hide");
+  $("rgMsg").innerHTML="";
+  if($("lrn").value&&!$("rgLrn").value)$("rgLrn").value=$("lrn").value;   // keep what was typed on the login card
+  if($("sgrade").value&&!$("rgGrade").value)$("rgGrade").value=$("sgrade").value;
+}
+function showLogin(){
+  $("sRegister").classList.add("hide");$("sReset").classList.add("hide");$("sAuth").classList.remove("hide");
+  $("sMsg").innerHTML="";$("rgMsg").innerHTML="";
+}
 async function studentRegister(){
-  if(initError)return msg("sMsg","Setup error: "+esc(initError));
-  const l=$("lrn").value.trim(),p=$("spw").value,g=parseInt($("sgrade").value,10),
-        e=$("semail").value.trim().toLowerCase();
-  if(!/^\d{12}$/.test(l))return msg("sMsg","LRN must be exactly 12 digits.");
-  if(!g)return msg("sMsg","Please choose your grade level.");
-  if(!/^[a-z0-9._%+-]+@gmail\.com$/.test(e))return msg("sMsg","Enter a valid Gmail address (name@gmail.com).");
+  if(initError)return msg("rgMsg","Setup error: "+esc(initError));
+  const l=$("rgLrn").value.trim(),g=parseInt($("rgGrade").value,10),e=$("rgEmail").value.trim().toLowerCase(),
+        p=$("rgPw").value,p2=$("rgPw2").value;
+  if(!/^\d{12}$/.test(l))return msg("rgMsg","LRN must be exactly 12 digits.");
+  if(!g)return msg("rgMsg","Please choose your grade level.");
+  if(!/^[a-z0-9._%+-]+@gmail\.com$/.test(e))return msg("rgMsg","Enter a valid Gmail address (name@gmail.com).");
+  if(p.length<6)return msg("rgMsg","Password must be at least 6 characters.");
+  if(p!==p2)return msg("rgMsg","The two passwords do not match.");
   if(!confirm("Register as Grade "+g+" with "+e+"? You cannot change your grade level later."))return;
   const {data,error}=await sb.rpc("student_register_email",{p_lrn:l,p_pw:p,p_grade:g,p_email:e});
-  if(error)return msg("sMsg","Connection error. Try again.");
+  if(error)return msg("rgMsg","Connection error. Try again.");
   const st=String(data).split(":")[0];
-  const m={
-    OK:["Registered! You can log in now. If you forget your password, ask your admin for a one-time password.",1],
-    BAD_EMAIL:["Enter a valid Gmail address (name@gmail.com)."],
-    NOT_ENROLLED:["LRN not found in the official SY enrollment list."],
-    EXISTS:["This LRN is already registered. Please log in."],
-    WEAK:["Password must be at least 6 characters."],
-    WRONG_GRADE:["That grade level doesn't match your enrollment record. Ask the admin."],
-    NO_GRADE:["Please choose your grade level."]
-  }[st]||["Could not register. Try again."];
-  msg("sMsg",m[0],m[1]);
+  if(st==="OK"){
+    ["rgLrn","rgGrade","rgEmail","rgPw","rgPw2"].forEach(id=>{$(id).value=""});
+    showLogin();
+    $("lrn").value=l;$("sgrade").value=String(g);   // ready to log in
+    return msg("sMsg","Registered! Enter your password below to log in. If you forget it later, ask your admin for a one-time password.",1);
+  }
+  msg("rgMsg",{
+    BAD_EMAIL:"Enter a valid Gmail address (name@gmail.com).",
+    NOT_ENROLLED:"LRN not found in the official SY enrollment list.",
+    EXISTS:"This LRN is already registered. Go back to login.",
+    WEAK:"Password must be at least 6 characters.",
+    WRONG_GRADE:"That grade level doesn't match your enrollment record. Ask the admin.",
+    NO_GRADE:"Please choose your grade level."
+  }[st]||"Could not register. Try again.");
 }
 async function studentLogin(){
   if(initError)return msg("sMsg","Setup error: "+esc(initError));
@@ -186,10 +202,10 @@ async function resetPassword(){
 // Always start at a clean sign-in screen (reload, back button, or a restored tab)
 function resetToSignIn(){
   clearInterval(timerId);user=pass=null;picked=null;
-  ["sVote","sReset"].forEach(id=>{const el=$(id);if(el)el.classList.add("hide")});
+  ["sVote","sReset","sRegister"].forEach(id=>{const el=$(id);if(el)el.classList.add("hide")});
   $("sAuth").classList.remove("hide");
-  ["lrn","semail","spw","sgrade","rlrn","rcode","rpw"].forEach(id=>{const el=$(id);if(el)el.value=""});
-  ["sMsg","vMsg","rMsg","ballot","vTimer"].forEach(id=>{const el=$(id);if(el)el.innerHTML=""});
+  ["lrn","spw","sgrade","rgLrn","rgGrade","rgEmail","rgPw","rgPw2","rlrn","rcode","rpw"].forEach(id=>{const el=$(id);if(el)el.value=""});
+  ["sMsg","rgMsg","vMsg","rMsg","ballot","vTimer"].forEach(id=>{const el=$(id);if(el)el.innerHTML=""});
   window.scrollTo(0,0);
 }
 if("scrollRestoration" in history)history.scrollRestoration="manual";
