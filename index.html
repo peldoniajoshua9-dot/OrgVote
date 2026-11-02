@@ -12,7 +12,7 @@
 
 <main>
   <div id="sAuth" class="card">
-    <h2>Student Login Portal</h2>
+    <h2>Student Login</h2>
     <label>LRN (12 digits)</label>
     <input id="lrn" inputmode="numeric" maxlength="12" placeholder="e.g. 123456789012">
     <label>Grade level</label>
@@ -25,14 +25,38 @@
       <option value="11">Grade 11</option>
       <option value="12">Grade 12</option>
     </select>
-    <label>Gmail address (first-time registration only)</label>
-    <input id="semail" type="email" placeholder="yourname@gmail.com" autocomplete="email">
     <label>Password</label>
-    <input id="spw" type="password" placeholder="Create or enter your password">
-    <button class="btn" onclick="studentRegister()">Register (first time)</button>
-    <button class="btn alt" onclick="studentLogin()">Log in</button>
+    <input id="spw" type="password" placeholder="Enter your password">
+    <button class="btn" onclick="studentLogin()">Log in</button>
     <p><a href="#" onclick="showReset();return false">Forgot password?</a></p>
+    <p>First time voting? <a href="#" onclick="showRegister();return false">Register here</a></p>
     <div id="sMsg"></div>
+  </div>
+
+  <div id="sRegister" class="card hide">
+    <h2>Student Registration</h2>
+    <p>For first-time voters. Your LRN must be on the school's enrollment list.</p>
+    <label>LRN (12 digits)</label>
+    <input id="rgLrn" inputmode="numeric" maxlength="12" placeholder="e.g. 123456789012">
+    <label>Grade level</label>
+    <select id="rgGrade">
+      <option value="">Select your grade level</option>
+      <option value="7">Grade 7</option>
+      <option value="8">Grade 8</option>
+      <option value="9">Grade 9</option>
+      <option value="10">Grade 10</option>
+      <option value="11">Grade 11</option>
+      <option value="12">Grade 12</option>
+    </select>
+    <label>Gmail address</label>
+    <input id="rgEmail" type="email" placeholder="yourname@gmail.com" autocomplete="email">
+    <label>Create a password</label>
+    <input id="rgPw" type="password" placeholder="At least 6 characters" autocomplete="new-password">
+    <label>Confirm password</label>
+    <input id="rgPw2" type="password" placeholder="Type the password again" autocomplete="new-password">
+    <button class="btn" onclick="studentRegister()">Register</button>
+    <p>Already registered? <a href="#" onclick="showLogin();return false">Back to login</a></p>
+    <div id="rgMsg"></div>
   </div>
 
   <div id="sReset" class="card hide">
