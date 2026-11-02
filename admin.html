@@ -140,9 +140,9 @@
           <h3 class="pos">Party lists</h3>
           <div class="row"><input id="ptn" maxlength="40" placeholder="Party list name"><button class="btn" onclick="addParty()">Add party</button></div>
           <div id="ptList" style="margin:6px 0 14px"></div>
-          <h3 class="pos">Import from CSV</h3>
-          <p><small>Columns: Party, Position, Name. Rows with an empty Name are skipped. New party lists are created automatically, and names already on the ballot are not added twice.</small></p>
-          <label class="btn" style="cursor:pointer">Choose CSV file<input type="file" accept=".csv,text/csv" hidden onchange="importCSV(this)"></label>
+          <h3 class="pos">Import from Excel or CSV</h3>
+          <p><small>Use an Excel (.xlsx) or CSV file with the columns Party, Position, Name. Rows with an empty Name are skipped. New party lists are created automatically, and names already on the ballot are not added twice.</small></p>
+          <label class="btn" style="cursor:pointer">Choose Excel or CSV file<input type="file" accept=".xlsx,.xls,.csv,text/csv" hidden onchange="importCSV(this)"></label>
           <div id="impMsg"></div>
           <h3 class="pos">Add candidates</h3>
           <label>Party list</label>
@@ -202,6 +202,7 @@
 </main>
 <div id="printSheet"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/common.js"></script>
 <script src="js/admin.js"></script>

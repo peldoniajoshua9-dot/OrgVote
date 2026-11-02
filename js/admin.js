@@ -260,7 +260,14 @@ async function importCSV(input){   // wrapper: always shows what is happening, a
 async function importCSV2(input){
   const file=input.files&&input.files[0];input.value="";
   if(!file)return;
-  let rows;try{rows=parseCSV(await file.text())}catch(e){return msg("impMsg","Could not read that file.")}
+  let rows;
+  try{
+    if(/\.xlsx?$/i.test(file.name)){   // Excel: read the first sheet
+      if(typeof XLSX==="undefined")return msg("impMsg","The Excel reader did not load (check your internet or ad blocker). Save the sheet as CSV and import that instead.");
+      const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+      rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:"",raw:false}).map(r=>r.map(x=>String(x))).filter(r=>r.some(x=>x.trim()));
+    }else rows=parseCSV(await file.text());
+  }catch(e){return msg("impMsg","Could not read that file.")}
   if(!rows.length)return msg("impMsg","The file is empty.");
   const head=rows[0].map(x=>String(x).trim().toLowerCase());
   const hasHead=head.includes("name")&&head.includes("position");
