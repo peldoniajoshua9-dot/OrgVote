@@ -64,6 +64,8 @@
     <p>Ask your admin for a one-time password (OTP). The admin will email it to the Gmail you registered with. It works once and expires in 15 minutes.</p>
     <label>LRN (12 digits)</label>
     <input id="rlrn" inputmode="numeric" maxlength="12">
+    <button class="btn alt" onclick="requestResetCode()">Request code from admin</button>
+    <small>Type your LRN, then tap this. Your admin will be notified and will email you a one-time password.</small>
     <label>One-time password (6 digits)</label>
     <input id="rcode" inputmode="numeric" maxlength="6" placeholder="123456">
     <label>New password</label>

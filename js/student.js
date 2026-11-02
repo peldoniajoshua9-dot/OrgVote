@@ -210,3 +210,18 @@ function resetToSignIn(){
 }
 if("scrollRestoration" in history)history.scrollRestoration="manual";
 window.addEventListener("pageshow",resetToSignIn);
+
+
+// ---- Request code from admin (Reset Password) ----
+let _rrWait = false;
+async function requestResetCode(){
+  if (initError) return msg("rMsg", "Setup error: " + esc(initError));
+  const l = $("rlrn").value.trim();
+  if (!/^\d{12}$/.test(l)) return msg("rMsg", "Enter your 12-digit LRN first.");
+  if (_rrWait) return;
+  _rrWait = true; setTimeout(() => { _rrWait = false; }, 30000);   // 30 s cooldown per page
+  const { error } = await sb.rpc("request_reset", { p_lrn: l });
+  // Same answer whether or not the LRN is registered, so nobody can probe for LRNs
+  if (error) { _rrWait = false; return msg("rMsg", "Could not send the request. Try again."); }
+  msg("rMsg", "If that LRN is registered, your admin has been notified. Wait for the one-time password in your Gmail, then type it below.", 1);
+}

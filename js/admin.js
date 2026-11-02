@@ -558,3 +558,59 @@ function resetToSignIn(){
 }
 if("scrollRestoration" in history)history.scrollRestoration="manual";
 window.addEventListener("pageshow",resetToSignIn);
+
+
+// ---- Students\x27 "Request code" notices ----
+(function () {
+  let list = [], busy = false;
+
+  function box() {
+    let el = document.getElementById("resetNotify");
+    if (!el) {
+      el = document.createElement("div"); el.id = "resetNotify";
+      const n = document.getElementById("notify");
+      n.parentNode.insertBefore(el, n);
+    }
+    return el;
+  }
+
+  function draw() {
+    const el = box();
+    if (!adminId) { el.innerHTML = ""; return; }
+    // Only registered students count (admin.js keeps that list in `students`)
+    const rows = list.map(r => ({ r, s: students.find(x => x.lrn === r.lrn) })).filter(x => x.s);
+    el.innerHTML = rows.map(({ r, s }) =>
+      `<div class="card nreq noprint"><div><b>LRN ${esc(r.lrn)}</b> (Grade ${esc(String(s.grade == null ? "-" : s.grade))}) asked for a password reset code. ` +
+      `<small>${esc(new Date(r.created_at).toLocaleTimeString())} · ` +
+      (s.verified ? "Gmail verified" : (s.email ? "Gmail NOT verified yet" : "No Gmail on file")) + `</small></div>` +
+      `<div><button class="btn sm" onclick="rrGetOtp('${esc(r.lrn)}')">Get OTP</button>` +
+      `<button class="btn sm alt" onclick="rrDismiss('${esc(r.lrn)}')">Dismiss</button></div></div>`).join("");
+  }
+
+  async function poll() {
+    if (!adminId || busy) { if (!adminId) draw(); return; }
+    busy = true;
+    try {
+      const { data, error } = await sb.rpc("admin_list_reset_requests", { p_admin: adminId });
+      if (!error && Array.isArray(data)) { list = data; draw(); }
+    } finally { busy = false; }
+  }
+
+  async function resolve(lrn) {
+    await sb.rpc("admin_resolve_reset", { p_admin: adminId, p_lrn: lrn });
+    list = list.filter(r => r.lrn !== lrn); draw(); poll();
+  }
+
+  window.rrGetOtp = async function (lrn) {
+    go("stu");                       // open Students & OTP so the code shows there
+    await genOtp(lrn);               // existing flow: makes the OTP + Gmail link
+    const out = document.getElementById("otpOut");
+    if (out && out.textContent.includes("OTP for LRN")) await resolve(lrn);   // clear the notice only if a code was made
+  };
+  window.rrDismiss = async function (lrn) {
+    if (confirm("Dismiss this request without sending a code?")) await resolve(lrn);
+  };
+
+  setInterval(poll, 6000);
+  setTimeout(poll, 1500);
+})();
