@@ -95,21 +95,71 @@ async function addLRN(){
   openG.add(String(g));$("wl").value="";load();
 }
 async function setGrade(l){
-  const g=parseInt(prompt("Grade level (7 to 12) for LRN "+l+":"),10);
+  const cur=(wlist.find(x=>x.lrn===l)||{}).grade;
+  const g=parseInt(prompt("New grade level (7 to 12) for LRN "+l+(cur?" (now Grade "+cur+")":"")+":"),10);
   if(!g)return;
-  const {data,error}=await sb.rpc("admin_add_lrn_grade",{p_admin:adminId,p_lrn:l,p_grade:g});
-  if(error)return alert("Error: "+error.message);
-  if(data==="BAD_GRADE")return alert("Grade must be 7 to 12.");
-  if(data==="REGISTERED_OTHER_GRADE")return alert("This student already registered under a different grade level.");
+  const {data,error}=await sb.rpc("admin_set_student_grade",{p_admin:adminId,p_lrn:l,p_grade:g});
+  if(error)return alert("Error: "+error.message+"\nRun orgvote_promote.sql in the Supabase SQL Editor.");
+  const m={BAD_GRADE:"Grade must be 7 to 12.",NOT_FOUND:"This LRN is not on the whitelist.",VOTED:"This student already voted, so the grade can't be changed. Reset the ballot first if the election is being restarted."}[data];
+  if(data!=="OK")return alert(m||"Could not change the grade.");
   openG.add(String(g));load();
 }
 async function rmLRN(l){
+  const w=wlist.find(x=>x.lrn===l);
+  if(!confirm(w&&w.registered
+    ?"Remove LRN "+l+" from the whitelist? The student's registered account is deleted too, and they cannot register again unless you add the LRN back.\n\nTo keep the LRN and only reset the registration, press Cancel and use 'unregister' instead."
+    :"Remove LRN "+l+" from the whitelist?"))return;
   const {data}=await sb.rpc("admin_remove_lrn",{p_admin:adminId,p_lrn:l});
   if(data==="VOTED")alert("This student already voted and can't be removed.");load();
 }
+// Delete only the student's account. The LRN stays in its grade folder, so the student can register again.
+async function unregister(l){
+  if(!confirm("Unregister the student with LRN "+l+"?\n\nTheir account is deleted, but the LRN stays in the whitelist so they can register again."))return;
+  const {data,error}=await sb.rpc("admin_unregister_student",{p_admin:adminId,p_lrn:l});
+  if(error)return alert("Error: "+error.message+"\nRun orgvote_unregister.sql in the Supabase SQL Editor.");
+  if(data==="VOTED")return alert("This student already voted, so the account can't be removed. Use Reset ballot first if the election is being restarted.");
+  if(data==="NOT_REGISTERED")alert("This LRN is not registered.");
+  load();
+}
 function folderToggle(k,isOpen){isOpen?openG.add(k):openG.delete(k)}
 function lrnChip(w,k){
-  return `<span class="chip">${esc(w.lrn)}${w.registered?" <small>registered</small>":""}${k==="none"?` <a href="#" onclick="setGrade('${w.lrn}');return false">set grade</a>`:""} <a href="#" onclick="rmLRN('${w.lrn}');return false">×</a></span>`;
+  return `<span class="chip">${esc(w.lrn)}${w.registered?` <small>registered</small> <a href="#" onclick="unregister('${w.lrn}');return false">unregister</a>`:""} <a href="#" onclick="setGrade('${w.lrn}');return false">${k==="none"?"set grade":"change grade"}</a> <a href="#" title="Remove this LRN from the whitelist" onclick="rmLRN('${w.lrn}');return false">×</a></span>`;
+}
+function isMain(){return !!(me&&me.role==="main")}
+function promoPanel(){
+  if(!isMain())return "";
+  return `<div class="cand" style="flex-direction:column;align-items:flex-start"><div><b>New school year</b><br><small>Moves every student up one grade (7 to 8, 8 to 9, and so on) and removes Grade 12 graduates from the whitelist. Allowed only when no votes are recorded, so download the results and use Reset ballot first.</small></div><button class="btn sm" onclick="promoteAll()">Promote all grades</button></div>`;
+}
+function promoBtn(g){
+  if(!isMain()||!/^\d+$/.test(g))return "";
+  return `<p><button class="btn sm alt" onclick="promoteGrade(${g})">${g==="12"?"Graduate Grade 12":"Promote Grade "+g+" to Grade "+(Number(g)+1)}</button></p>`;
+}
+function promoMsg(data){
+  return {NOT_MAIN:"Only the Main Admin can promote grades.",VOTES_EXIST:"Votes are recorded. Download the results, then use Reset ballot under Timer & Reset, and try again.",BAD_GRADE:"Grade must be 7 to 12."}[data]||"Could not promote. Try again.";
+}
+async function promoteGrade(g){
+  const n=wlist.filter(w=>w.grade===g).length,nx=wlist.filter(w=>w.grade===g+1).length;
+  const what=g===12
+    ?"Graduate Grade 12? "+n+" student(s) are removed from the whitelist and their accounts are deleted."
+    :"Promote Grade "+g+" to Grade "+(g+1)+"? "+n+" student(s) move up."+(nx?" Grade "+(g+1)+" already has "+nx+" LRN(s); they will be merged. Promote the higher grade first to avoid this.":"");
+  if(!confirm(what+"\n\nThis cannot be undone."))return;
+  const {data,error}=await sb.rpc("admin_promote_grade",{p_admin:adminId,p_from:g});
+  if(error)return alert("Error: "+error.message+"\nRun orgvote_promote.sql in the Supabase SQL Editor.");
+  const [st,cnt]=String(data).split("|");
+  if(st!=="OK")return alert(promoMsg(st));
+  alert((g===12?"Graduated ":"Promoted ")+cnt+" student(s).");
+  load();
+}
+async function promoteAll(){
+  const counts=[12,11,10,9,8,7].map(g=>"Grade "+g+": "+wlist.filter(w=>w.grade===g).length).join(", ");
+  if(!confirm("Promote ALL grades for the new school year?\n\nGrade 12 graduates are removed from the whitelist and their accounts are deleted. Grades 7 to 11 move up one grade.\n\nStudents now - "+counts+"\n\nThis cannot be undone."))return;
+  if(prompt("Type PROMOTE to confirm:")!=="PROMOTE")return;
+  const {data,error}=await sb.rpc("admin_promote_all",{p_admin:adminId});
+  if(error)return alert("Error: "+error.message+"\nRun orgvote_promote.sql in the Supabase SQL Editor.");
+  const [st,res]=String(data).split("|");
+  if(st!=="OK")return alert(promoMsg(st));
+  alert("Done. Students moved or graduated per grade (grade:count): "+res+"\n\nAdd the new Grade 7 LRNs under the Grade 7 folder.");
+  load();
 }
 function renderWhitelist(){
   const groups={};
@@ -121,12 +171,12 @@ function renderWhitelist(){
   if(wlSel!=="all"){   // one folder picked in the sidebar
     const items=groups[wlSel]||[];
     const title=wlSel==="none"?"No grade assigned":"Grade "+wlSel;
-    $("wlList").innerHTML=`<h3 class="pos">${GI[wlSel]} ${title} <small>(${items.length})</small></h3>`+
+    $("wlList").innerHTML=`<h3 class="pos">${GI[wlSel]} ${title} <small>(${items.length})</small></h3>`+promoBtn(wlSel)+
       (items.map(w=>lrnChip(w,wlSel)).join("")||"<small>No LRNs in this folder yet.</small>");
     return;
   }
   const keys=["7","8","9","10","11","12"].concat(groups.none?["none"]:[]);   // all folders
-  $("wlList").innerHTML=keys.map(k=>{
+  $("wlList").innerHTML=promoPanel()+keys.map(k=>{
     const items=groups[k]||[];
     const title=k==="none"?"No grade assigned":"Grade "+k;
     return `<details class="folder" ${openG.has(k)?"open":""} ontoggle="folderToggle('${k}',this.open)"><summary>${GI[k]} ${title} <span class="chip">${items.length}</span></summary><div>${items.map(w=>lrnChip(w,k)).join("")||"<small>No LRNs in this folder.</small>"}</div></details>`;
