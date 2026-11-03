@@ -1,5 +1,6 @@
 let user=null,pass=null;
 let pmap={};   // candidate id -> party list name
+let ugrade=null,myRep="",repOK=false,repIds=[],pickedM=[],maxPick=1;   // Representatives: pick 2 from your own grade
 let cands=[],photos={},picked=null,vstatus=null,timerId=null;
 // Order of offices, highest first. Anything not listed goes after these, A to Z.
 const POS_GROUPS=[["president"],["vice president","vp"],["secretary"],["treasurer"],["auditor"],["public information officer","pio"],["business manager"],["peace officer","sergeant at arms","sergeant"],["representative","rep"]];
@@ -60,10 +61,10 @@ async function studentLogin(){
   if(data==="BAD_LOGIN")return msg("sMsg","Invalid LRN or password.");
   if(data==="WRONG_GRADE")return msg("sMsg","This LRN is registered under a different grade level. Choose the grade you registered with.");
   if(data!=="OK")return msg("sMsg","Could not log in. Try again.");
-  user=l;pass=p;$("sAuth").classList.add("hide");$("sVote").classList.remove("hide");
+  user=l;pass=p;ugrade=g;$("sAuth").classList.add("hide");$("sVote").classList.remove("hide");
   $("who").textContent="LRN ••••••••"+l.slice(-4)+" · Grade "+g;renderBallot();
 }
-function studentLogout(){clearInterval(timerId);user=pass=null;if($("vTimer"))$("vTimer").innerHTML="";$("sVote").classList.add("hide");$("sAuth").classList.remove("hide");$("spw").value="";$("sMsg").innerHTML="";$("vMsg").innerHTML=""}
+function studentLogout(){clearInterval(timerId);user=pass=ugrade=null;if($("vTimer"))$("vTimer").innerHTML="";$("sVote").classList.add("hide");$("sAuth").classList.remove("hide");$("spw").value="";$("sMsg").innerHTML="";$("vMsg").innerHTML=""}
 
 // ---- Voting timer (server clock decides; this only shows the countdown) ----
 function fmtLeft(s){
@@ -117,37 +118,50 @@ async function renderBallot(){
   if(stt==="upcoming"){$("ballot").innerHTML="<p>Voting has not started yet. This page updates by itself when voting opens.</p>";return}
   if(stt==="closed"){$("ballot").innerHTML="<p>Voting is closed. Thank you for taking part.</p>";return}
 
-  const [c,v,ph,pp]=await Promise.all([
+  const [c,v,ph,pp,rv]=await Promise.all([
     sb.rpc("ballot_candidates",{p_lrn:user,p_pw:pass}),
     sb.rpc("my_ballot",{p_lrn:user,p_pw:pass}),
     sb.rpc("ballot_photos",{p_lrn:user,p_pw:pass}),
-    sb.rpc("ballot_parties")
+    sb.rpc("ballot_parties"),
+    sb.rpc("my_rep_votes",{p_lrn:user,p_pw:pass,p_grade:ugrade})
   ]);
   if(c.error)return msg("vMsg","Ballot error: "+esc(c.error.message));
   pmap=(!pp.error&&pp.data)?pp.data:{};   // if the party SQL has not been run, no party is shown
   photos={};if(!ph.error)(ph.data||[]).forEach(p=>{photos[p.id]=p.photo});
-  const list=c.data||[],mine=v.data||[];
-  cands=list;picked=null;
+  // Representatives: a student sees only their own grade's, and picks 2 (needs orgvote_rep_votes.sql)
+  repOK=!rv.error&&Array.isArray(rv.data);repIds=repOK?rv.data:[];
+  const isGradeRep=o=>/^grade\s*\d+\s*representative$/i.test(String(o).trim());
+  const wantRep=("Grade "+ugrade+" Representative").toLowerCase();
+  const list=(c.data||[]).filter(x=>!(repOK&&isGradeRep(x.office)&&String(x.office).trim().toLowerCase()!==wantRep)),mine=v.data||[];
+  const repHit=list.find(x=>String(x.office).trim().toLowerCase()===wantRep);
+  myRep=(repOK&&repHit)?repHit.office:"";
+  cands=list;picked=null;pickedM=[];
   if(!list.length){$("ballot").innerHTML="<p>No candidates yet.</p>";return}
   const offices=[...new Set(list.map(x=>x.office))].sort((a,b)=>posRank(a)-posRank(b)||a.localeCompare(b));   // President first, then Vice President, and so on
   const done=new Map(mine.map(m=>[m.office,m.candidate_id]));
+  if(myRep&&repIds.length)done.set(myRep,"REP");
   const next=offices.find(o=>!done.has(o));
   if(!next){
     $("ballot").innerHTML="<p>You have answered all positions. Thank you!</p>"+
       offices.map(o=>{
+        if(myRep&&o===myRep){
+          const picks=repIds.filter(i=>i!=="ABSTAIN").map(i=>list.find(x=>String(x.id)===String(i))).filter(Boolean);
+          return `<div class="cand"><div><b>${esc(o)}</b><br><small>${picks.length?picks.map(x=>esc(x.name)+(pmap[x.id]?" · "+esc(pmap[x.id]):"")).join("<br>"):"No candidate selected"}</small></div><span class="chip">${picks.length?"Your votes":"Abstained"}</span></div>`;
+        }
         const cand=list.find(x=>x.id===done.get(o));
         return `<div class="cand"><div><b>${esc(o)}</b><br><small>${cand?esc(cand.name)+(pmap[cand.id]?" · "+esc(pmap[cand.id]):""):"No candidate selected"}</small></div><span class="chip">${cand?"Your vote":"Abstained"}</span></div>`;
       }).join("");
     return;
   }
   const n=offices.filter(o=>done.has(o)).length+1;
+  maxPick=(myRep&&next===myRep)?Math.min(2,list.filter(x=>x.office===next).length):1;
   const after=offices.find(o=>!done.has(o)&&o!==next);
   const cards=list.filter(x=>x.office===next).map(x=>
     `<button type="button" class="bcard" data-id="${x.id}" onclick="pick('${x.id}')"><span class="bchk"></span><div class="bph">${photoHtml(x)}</div><div class="bname">${esc(x.name)}</div>${partyLine(x)}</button>`).join("");
   $("ballot").innerHTML=
     `<div class="bh"><span>${esc(next)}</span><small>Position ${n} of ${offices.length}</small></div>`+
-    `<p class="bhint">Pick 1 candidate for ${esc(next)}. Click a photo to select it, and click it again to deselect.</p>`+
-    `<div class="bwrap"><aside class="bside"><div class="bcount"><b id="pickN">0</b> out of <b>1</b></div>`+
+    `<p class="bhint">Pick ${maxPick} candidate${maxPick>1?"s":""} for ${esc(next)}${maxPick>1?" (from any party list)":""}. Click a photo to select it, and click it again to deselect.</p>`+
+    `<div class="bwrap"><aside class="bside"><div class="bcount"><b id="pickN">0</b> out of <b>${maxPick}</b></div>`+
     `<div class="bpick" id="pickList"><small>No candidate picked</small></div>`+
     `<button class="btn alt bsm" data-o="${esc(next)}" onclick="abstain(this.dataset.o)">Abstain</button></aside>`+
     `<div class="bgrid">${cards}</div></div>`+
@@ -155,6 +169,18 @@ async function renderBallot(){
     `<button id="doneBtn" class="btn ok" disabled onclick="finishPick()">Finished Choosing &gt;&gt;</button></div>`;
 }
 function pick(id){
+  if(maxPick>1){   // Representatives: pick up to 2
+    const i=pickedM.indexOf(id);
+    if(i>=0)pickedM.splice(i,1);
+    else if(pickedM.length<maxPick)pickedM.push(id);
+    else return msg("vMsg","You can pick only "+maxPick+". Click a picked candidate to deselect it first.");
+    $("vMsg").innerHTML="";
+    document.querySelectorAll(".bcard").forEach(b=>b.classList.toggle("sel",pickedM.includes(b.dataset.id)));
+    $("pickN").textContent=String(pickedM.length);
+    $("pickList").innerHTML=pickedM.length?pickedM.map(k=>{const c=cands.find(x=>String(x.id)===String(k));return c?`<div class="bchip">${esc(c.name)}</div>`:""}).join(""):"<small>No candidate picked</small>";
+    $("doneBtn").disabled=pickedM.length!==maxPick;
+    return;
+  }
   picked=(picked===id)?null:id;
   document.querySelectorAll(".bcard").forEach(b=>b.classList.toggle("sel",b.dataset.id===picked));
   const c=cands.find(x=>x.id===picked);
@@ -162,10 +188,24 @@ function pick(id){
   $("pickList").innerHTML=picked&&c?`<div class="bchip">${esc(c.name)}</div>`:"<small>No candidate picked</small>";
   $("doneBtn").disabled=!picked;
 }
-function finishPick(){if(picked)vote(picked)}
+function finishPick(){
+  if(maxPick>1){if(pickedM.length===maxPick)voteMulti(pickedM.slice());return}
+  if(picked)vote(picked);
+}
+async function voteMulti(ids){
+  if(!confirm("Submit your "+ids.length+" votes for this position? They cannot be changed."))return;
+  const {data,error}=await sb.rpc("cast_rep_votes",{p_lrn:user,p_pw:pass,p_grade:ugrade,p_ids:ids});
+  if(error||(data!=="OK"&&data!=="ALREADY")){
+    const m=await notOpenMsg();
+    if(m){msg("vMsg",m);return renderBallot()}
+    return msg("vMsg",data==="BAD_PICK"?"Pick exactly "+maxPick+" Representatives from your own grade.":"Could not record your votes. Try again.");
+  }
+  $("vMsg").innerHTML="";
+  renderBallot();
+}
 async function abstain(office){
   if(!confirm("Abstain from this position? It cannot be changed."))return;
-  const {data,error}=await sb.rpc("cast_abstain",{p_lrn:user,p_pw:pass,p_office:office});
+  const {data,error}=(myRep&&office===myRep)?await sb.rpc("cast_rep_votes",{p_lrn:user,p_pw:pass,p_grade:ugrade,p_ids:[]}):await sb.rpc("cast_abstain",{p_lrn:user,p_pw:pass,p_office:office});
   if(error||(data!=="OK"&&data!=="ALREADY")){
     const m=await notOpenMsg();
     if(m){msg("vMsg",m);return renderBallot()}
@@ -205,7 +245,7 @@ async function resetPassword(){
 
 // Always start at a clean sign-in screen (reload, back button, or a restored tab)
 function resetToSignIn(){
-  clearInterval(timerId);user=pass=null;picked=null;
+  clearInterval(timerId);user=pass=ugrade=null;picked=null;pickedM=[];
   ["sVote","sReset","sRegister"].forEach(id=>{const el=$(id);if(el)el.classList.add("hide")});
   $("sAuth").classList.remove("hide");
   ["lrn","spw","sgrade","rgLrn","rgGrade","rgEmail","rgPw","rgPw2","rlrn","rcode","rpw"].forEach(id=>{const el=$(id);if(el)el.value=""});

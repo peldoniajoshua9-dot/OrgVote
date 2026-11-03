@@ -25,6 +25,8 @@ async function load(){
   cphotos=p.error?{}:(p.data||{});
   const pt=await sb.rpc("admin_list_parties",{p_admin:adminId});
   pdata=pt.error||!pt.data?{list:[],map:{}}:pt.data;
+  const rc=await sb.rpc("admin_rep_counts",{p_admin:adminId});   // Representative votes (2 per student) are counted separately
+  if(!rc.error&&rc.data)state.candidates.forEach(c=>{c.votes=Number(c.votes||0)+Number(rc.data[c.id]||0)});
   const wd=await sb.rpc("admin_get_window",{p_admin:adminId});
   win=wd.error?null:wd.data;
   const mm=await sb.rpc("admin_me",{p_admin:adminId});me=mm.error?null:mm.data;
@@ -557,6 +559,7 @@ async function resetBallot(){
   const [st,n,tables]=String(data).split(":");
   $("rbConfirm").value="";
   if(st!=="OK")return msg("ctlMsg","Could not reset the ballot.");
+  await sb.rpc("admin_reset_rep_votes",{p_admin:adminId});   // also clear the Representative votes
   msg("ctlMsg","Ballot reset. "+esc(n)+" record(s) cleared from: "+esc(tables||"no tables found")+".",1);
   load();
 }
