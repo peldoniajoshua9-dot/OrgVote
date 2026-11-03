@@ -69,18 +69,18 @@ function toggleWl(){
 function renderSide(){
   const cnt=k=>wlist.filter(w=>(w.grade==null?"none":String(w.grade))===k).length;
   const item=(icon,label,click,on,count,sub)=>
-    `<a href="#" class="si${sub?" sub":""}${on?" on":""}" onclick="${click};return false"><span class="ic">${icon}</span><span>${label}</span>${count==null?"":`<span class="chip">${count}</span>`}</a>`;
+    `<a href="#" class="si${sub?" sub":""}${on?" on":""}" onclick="${click};return false"><span class="ic">${icon}</span><span class="lbl">${label}</span>${count==null?"":`<span class="chip">${count}</span>`}<span class="caret"></span></a>`;
   let h=(me?`<div style="padding:2px 12px 8px"><small>Signed in as <b>${esc(me.name)}</b>${me.role==="main"?" (Main Admin)":""}</small></div>`:"")+item('<i class="bul sq"></i>',"Results","go('res')",view==="res");
   h+=item('<i class="bul dia"></i>',"Candidates","go('cand')",view==="cand",state.candidates.length);
   h+=item('<i class="bul tm"></i>',"Timer &amp; Reset","go('ctl')",view==="ctl");
   if(me&&me.role==="main")h+=item('<i class="bul adm"></i>',"Admins","go('adm')",view==="adm",admins.length);
-  h+=`<a href="#" class="si${view==="wl"&&wlSel==="all"?" on":""}" onclick="toggleWl();return false"><span class="ic"><i class="bul fold"></i></span><span>Whitelist</span><span class="chip">${wlist.length}</span><span class="caret">${wlOpen?"▾":"▸"}</span></a>`;
+  h+=`<a href="#" class="si${view==="wl"&&wlSel==="all"?" on":""}" onclick="toggleWl();return false"><span class="ic"><i class="bul fold"></i></span><span class="lbl">Whitelist</span><span class="chip">${wlist.length}</span><span class="caret">${wlOpen?"▾":"▸"}</span></a>`;
   if(wlOpen){   // the dropdown: one folder per grade, each with its own bullet
     ["7","8","9","10","11","12"].forEach(g=>{h+=item(GI[g],"Grade "+g,`go('wl','${g}')`,view==="wl"&&wlSel===g,cnt(g),1)});
     if(cnt("none"))h+=item(GI.none,"No grade",`go('wl','none')`,view==="wl"&&wlSel==="none",cnt("none"),1);
   }
   h+=item('<i class="bul cir"></i>',"Students &amp; OTP","go('stu')",view==="stu",students.length);
-  h+=`<a href="#" class="si out" onclick="adminLogout();return false"><span class="ic"><i class="bul out"></i></span><span>Log out</span></a>`;
+  h+=`<a href="#" class="si out" onclick="adminLogout();return false"><span class="ic"><i class="bul out"></i></span><span class="lbl">Log out</span></a>`;
   $("side").innerHTML=h;
 }
 

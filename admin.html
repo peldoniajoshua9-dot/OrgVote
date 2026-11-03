@@ -45,6 +45,13 @@
   .ainfo{min-width:0}
   .si.sub{margin-left:20px;padding:6px 10px;font-size:.92rem;font-weight:500}
   .si.out{margin-top:10px;padding-top:12px;border-top:1px solid var(--line);border-radius:0 0 10px 10px}
+  /* Menu alignment: same icon column, same label start, chips and carets in fixed right-hand columns */
+  .bul{box-sizing:border-box}
+  .si .ic{width:20px;flex:none}
+  .si .lbl{flex:1;min-width:0}
+  .si .chip{margin:0;min-width:28px;text-align:center}
+  .si .caret{width:14px;margin-left:6px;text-align:center}
+  .si.sub{margin-left:24px;padding:7px 12px}
   @media (max-width:800px){
     .admin-layout{grid-template-columns:1fr}
     .side{position:static;display:flex;flex-wrap:wrap;gap:4px}
