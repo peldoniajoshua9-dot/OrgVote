@@ -472,15 +472,18 @@ async function setParty(id,party){
 }
 
 // ---- Candidate photos ----
-function shrink(file){   // crop to 240x300 and compress to a small JPEG
+function shrink(file){   // crop to 200x250 and compress to a small JPEG (under about 12 KB)
   return new Promise((res,rej)=>{
     const img=new Image(),u=URL.createObjectURL(file);
     img.onload=()=>{
-      const W=240,H=300,cv=document.createElement("canvas");cv.width=W;cv.height=H;
+      const W=200,H=250,cv=document.createElement("canvas");cv.width=W;cv.height=H;
       const x=cv.getContext("2d"),r=Math.max(W/img.width,H/img.height),w=img.width*r,h=img.height*r;
       x.fillStyle="#fff";x.fillRect(0,0,W,H);
       x.drawImage(img,(W-w)/2,(H-h)*0.25,w,h);   // keeps heads in frame
-      URL.revokeObjectURL(u);res(cv.toDataURL("image/jpeg",0.82));
+      URL.revokeObjectURL(u);
+      let q=0.8,out=cv.toDataURL("image/jpeg",q);
+      while(out.length>16000&&q>0.35){q-=0.1;out=cv.toDataURL("image/jpeg",q)}   // lower the quality until it is small enough
+      res(out);
     };
     img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error("bad image"))};
     img.src=u;
