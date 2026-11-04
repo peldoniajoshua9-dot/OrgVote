@@ -102,9 +102,17 @@
 <main>
   <div id="aAuth" class="card">
     <h2>Admin Login Portal</h2>
-    <label>Unique Admin ID</label>
-    <input id="aid" type="password" placeholder="Enter Unique Admin ID">
+    <label>Email</label>
+    <input id="aemail" type="email" placeholder="admin@gmail.com" autocomplete="username">
+    <label>Password</label>
+    <input id="apw" type="password" placeholder="Your password" autocomplete="current-password">
     <button class="btn" onclick="adminLogin()">Log in</button>
+    <details id="legacyBox" style="margin-top:14px">
+      <summary>Use the old Admin ID instead</summary>
+      <label>Unique Admin ID</label>
+      <input id="aid" type="password" placeholder="Enter Unique Admin ID">
+      <button class="btn alt" onclick="adminLogin()">Log in with Admin ID</button>
+    </details>
     <div id="aMsg"></div>
   </div>
 
@@ -184,11 +192,11 @@
 
         <div id="vAdm" class="card noprint hide">
           <h2>Admins</h2>
-          <p>You are the Main Admin (supervisor). Only you can add or remove admins. When another admin asks to print the official results, you get a notice at the top of the page and can approve or deny it. Each admin has their own Admin ID.</p>
+          <p>You are the Main Admin (supervisor). Only you can add or remove admins. When another admin asks to print the official results, you get a notice at the top of the page and can approve or deny it. Each admin signs in with their own email and password. To add one: fill in the form below with their login email, then create their account in Supabase (Authentication &gt; Users &gt; Add user, tick Auto Confirm User) using the same email.</p>
           <div id="admList"></div>
           <h3 class="pos">Add an admin</h3>
           <div class="row"><input id="anName" placeholder="Name"><input id="anId" type="password" placeholder="New Admin ID (8+ characters)" autocomplete="new-password"></div>
-          <input id="anEmail" type="email" placeholder="Gmail for notifications (optional)" style="margin-top:10px">
+          <input id="anEmail" type="email" placeholder="Login email (needed for the email login)" style="margin-top:10px">
           <button class="btn" onclick="addAdmin()">Add admin</button>
           <div id="admMsg"></div>
         </div>

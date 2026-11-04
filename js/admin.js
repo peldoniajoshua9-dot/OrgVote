@@ -39,19 +39,31 @@ async function load(){
 }
 async function adminLogin(){
   if(initError)return msg("aMsg","Setup error: "+esc(initError));
-  adminId=$("aid").value.trim();
+  const em=$("aemail").value.trim().toLowerCase(),pw=$("apw").value,old=$("aid").value.trim();
+  let viaAuth=false;
+  if(em||pw){   // email + password (Supabase Auth). The session travels with every request, so the database knows who this is.
+    if(!em||!pw)return msg("aMsg","Enter your email and password.");
+    const {error}=await sb.auth.signInWithPassword({email:em,password:pw});
+    if(error)return msg("aMsg","Wrong email or password.");
+    adminId="session";viaAuth=true;
+  }else if(old){adminId=old}   // old Admin ID (works only while the database still allows it)
+  else return msg("aMsg","Enter your email and password.");
   try{var ok=await load()}catch(e){lastError={message:e.message};ok=false}
-  if(!ok){adminId=null;
+  if(!ok){
+    if(viaAuth){try{await sb.auth.signOut()}catch(e){}}
+    adminId=null;
     const m=lastError&&lastError.message||"";
-    return msg("aMsg",m.includes("unauthorized")?"Invalid Admin ID.":"Connection error: "+esc(m||"unknown")+(lastError&&lastError.code?" ("+esc(lastError.code)+")":""));}
+    return msg("aMsg",m.includes("unauthorized")?(viaAuth?"This account is not an admin. Ask the Main Admin to add your email.":"Invalid Admin ID."):"Connection error: "+esc(m||"unknown")+(lastError&&lastError.code?" ("+esc(lastError.code)+")":""));}
+  $("apw").value="";$("aid").value="";
   $("aAuth").classList.add("hide");$("aPanel").classList.remove("hide");
   clearInterval(pollId);pollId=setInterval(pollSync,6000);   // checks for print requests from other admins
 }
 function adminLogout(){
+  try{sb.auth.signOut()}catch(e){}
   clearInterval(winTick);clearInterval(pollId);win=null;cphotos={};me=null;admins=[];pr={mine:null,incoming:[],admins:0};prNote="";document.title="OrgVote Admin";syncV=syncVotes=null;
   adminId=state=null;students=[];wlist=[];view="res";wlSel="all";wlOpen=false;
   $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
-  $("aid").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML="";
+  $("aid").value=$("aemail").value=$("apw").value="";$("aMsg").innerHTML="";$("otpOut").innerHTML="";
 }
 
 // ---- Left sidebar ----
@@ -731,11 +743,12 @@ function csv(){
 
 // Always start at a clean sign-in screen (reload, back button, or a restored tab)
 function resetToSignIn(){
+  try{if(sb)sb.auth.signOut()}catch(e){}
   clearInterval(winTick);clearInterval(pollId);me=null;admins=[];pr={mine:null,incoming:[],admins:0};prNote="";document.title="OrgVote Admin";syncV=syncVotes=null;
   adminId=state=null;students=[];wlist=[];win=null;cphotos={};view="res";wlSel="all";wlOpen=false;
   $("aPanel").classList.add("hide");$("aAuth").classList.remove("hide");
   $("aMsg").innerHTML="";$("otpOut").innerHTML="";
-  ["aid","wl","wgrade","stuSearch","cn","cp","tmStart","rbConfirm","chkCode","anName","anId","anEmail"].forEach(id=>{const el=$(id);if(el)el.value=""});
+  ["aid","aemail","apw","wl","wgrade","stuSearch","cn","cp","tmStart","rbConfirm","chkCode","anName","anId","anEmail"].forEach(id=>{const el=$(id);if(el)el.value=""});
   ["printMsg","chkMsg"].forEach(id=>{const el=$(id);if(el)el.innerHTML=""});
   if($("printSheet"))$("printSheet").innerHTML="";
   window.scrollTo(0,0);
@@ -798,3 +811,8 @@ window.addEventListener("pageshow",resetToSignIn);
   setInterval(poll, 6000);
   setTimeout(poll, 1500);
 })();
+
+// Press Enter on the login card to log in
+document.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&["aemail","apw","aid"].includes(e.target.id)&&!$("aAuth").classList.contains("hide"))adminLogin();
+});

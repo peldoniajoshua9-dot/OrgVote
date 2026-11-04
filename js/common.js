@@ -5,5 +5,5 @@ let sb=null,initError=null;
 try{
   if(typeof supabase==="undefined")throw new Error("Supabase library did not load (check internet / ad blocker)");
   if(typeof SUPABASE_URL==="undefined")throw new Error("js/config.js did not load");
-  sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+  sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
 }catch(e){initError=e.message}
