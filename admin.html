@@ -192,11 +192,11 @@
 
         <div id="vAdm" class="card noprint hide">
           <h2>Admins</h2>
-          <p>You are the Main Admin (supervisor). Only you can add or remove admins. When another admin asks to print the official results, you get a notice at the top of the page and can approve or deny it. Each admin signs in with their own email and password. To add one: fill in the form below with their login email, then create their account in Supabase (Authentication &gt; Users &gt; Add user, tick Auto Confirm User) using the same email.</p>
+          <p>You are the Main Admin (supervisor). Only you can add or remove admins. When another admin asks to print the official results, you get a notice at the top of the page and can approve or deny it. Each admin signs in with their own email and password. Fill in the form below: it adds them to the list and creates their login. Give them the temporary password privately.</p>
           <div id="admList"></div>
           <h3 class="pos">Add an admin</h3>
-          <div class="row"><input id="anName" placeholder="Name"><input id="anId" type="password" placeholder="New Admin ID (8+ characters)" autocomplete="new-password"></div>
-          <input id="anEmail" type="email" placeholder="Login email (needed for the email login)" style="margin-top:10px">
+          <div class="row"><input id="anName" placeholder="Name"><input id="anEmail" type="email" placeholder="Login email (Gmail)"></div>
+          <input id="anId" type="password" placeholder="Temporary password (8+ characters)" autocomplete="new-password" style="margin-top:10px">
           <button class="btn" onclick="addAdmin()">Add admin</button>
           <div id="admMsg"></div>
         </div>

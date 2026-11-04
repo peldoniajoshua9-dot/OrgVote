@@ -700,16 +700,26 @@ function renderAdmins(){
     (a.me?"":`<div style="margin-left:auto"><button class="btn sm alt" onclick="removeAdmin('${a.id}')">Remove</button></div>`)+`</div>`).join("")||"<small>No admins found.</small>";
 }
 async function addAdmin(){
-  const n=$("anName").value.trim(),i=$("anId").value,e=$("anEmail").value.trim();
+  const n=$("anName").value.trim(),pw=$("anId").value,e=$("anEmail").value.trim().toLowerCase();
   if(!n)return msg("admMsg","Enter a name.");
-  if(i.length<8)return msg("admMsg","The Admin ID must be at least 8 characters.");
-  const {data,error}=await sb.rpc("admin_add_admin",{p_admin:adminId,p_name:n,p_new_id:i,p_email:e||null});
-  if(error)return msg("admMsg","Error: "+esc(error.message)+". Run orgvote_admin_approval.sql in the Supabase SQL Editor.");
-  const m={BAD_NAME:"Enter a valid name.",WEAK_ID:"The Admin ID must be at least 8 characters.",BAD_EMAIL:"Enter a valid email address.",DUPLICATE_ID:"That Admin ID is already used. Choose a different one.",NOT_MAIN:"Only the Main Admin can add admins."}[data];
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))return msg("admMsg","Enter their login email.");
+  if(pw.length<8)return msg("admMsg","The temporary password must be at least 8 characters.");
+  const rnd=Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,"0")).join("");   // old-style Admin ID: random and never shown
+  const {data,error}=await sb.rpc("admin_add_admin",{p_admin:adminId,p_name:n,p_new_id:rnd,p_email:e});
+  if(error)return msg("admMsg","Error: "+esc(error.message));
+  const m={BAD_NAME:"Enter a valid name.",BAD_EMAIL:"Enter a valid email address.",NOT_MAIN:"Only the Main Admin can add admins."}[data];
   if(data!=="OK")return msg("admMsg",m||"Could not add the admin.");
+  // now create their email + password login (Edge Function create-admin-login)
+  const r=await sb.functions.invoke("create-admin-login",{body:{email:e,password:pw}});
   $("anName").value=$("anId").value=$("anEmail").value="";
-  msg("admMsg","Admin added. Give them their Admin ID privately.",1);
   load();
+  if(r.error){
+    let d="";try{if(r.error.context&&r.error.context.json)d=(await r.error.context.json()).error||""}catch(_){}
+    const why={NOT_MAIN:"only the Main Admin signed in with email can do this.",WEAK_PASSWORD:"the password must be 8+ characters.",NOT_ON_ADMIN_LIST:"that email is not on the admin list.",BAD_EMAIL:"that email is not valid."}[d]
+      ||(d&&d.toLowerCase().includes("already")?"a login with that email already exists in Supabase.":"the create-admin-login function is not set up yet.");
+    return msg("admMsg","Added to the admin list, but their login was NOT created: "+esc(why)+" You can create it in Supabase: Authentication > Users > Add user (tick Auto Confirm User).");
+  }
+  msg("admMsg","Admin added and login created. Give them the email and temporary password privately.",1);
 }
 async function removeAdmin(id){
   if(!confirm("Remove this admin? Their Admin ID will stop working."))return;
