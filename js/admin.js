@@ -44,7 +44,12 @@ async function adminLogin(){
   if(em||pw){   // email + password (Supabase Auth). The session travels with every request, so the database knows who this is.
     if(!em||!pw)return msg("aMsg","Enter your email and password.");
     const {error}=await sb.auth.signInWithPassword({email:em,password:pw});
-    if(error)return msg("aMsg","Wrong email or password.");
+    if(error){
+      const m=String(error.message||"");
+      if(/not confirmed/i.test(m))return msg("aMsg","This account's email is not confirmed yet. In Supabase, create the user with Auto Confirm User turned on, or confirm it with the SQL from Claude.");
+      if(/invalid login/i.test(m))return msg("aMsg","Wrong email or password, or there is no Supabase login for this email yet (Authentication > Users).");
+      return msg("aMsg","Login error: "+esc(m));
+    }
     adminId="session";viaAuth=true;
   }else if(old){adminId=old}   // old Admin ID (works only while the database still allows it)
   else return msg("aMsg","Enter your email and password.");
