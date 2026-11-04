@@ -714,10 +714,13 @@ async function addAdmin(){
   $("anName").value=$("anId").value=$("anEmail").value="";
   load();
   if(r.error){
-    let d="";try{if(r.error.context&&r.error.context.json)d=(await r.error.context.json()).error||""}catch(_){}
-    const why={NOT_MAIN:"only the Main Admin signed in with email can do this.",WEAK_PASSWORD:"the password must be 8+ characters.",NOT_ON_ADMIN_LIST:"that email is not on the admin list.",BAD_EMAIL:"that email is not valid."}[d]
-      ||(d&&d.toLowerCase().includes("already")?"a login with that email already exists in Supabase.":"the create-admin-login function is not set up yet.");
-    return msg("admMsg","Added to the admin list, but their login was NOT created: "+esc(why)+" You can create it in Supabase: Authentication > Users > Add user (tick Auto Confirm User).");
+    let d="",st="",raw="";
+    try{const c=r.error.context;if(c&&typeof c.text==="function"){st=c.status||"";raw=await c.text();try{d=JSON.parse(raw).error||""}catch(_){}}}catch(_){}
+    const known={NOT_MAIN:"only the Main Admin signed in with email can do this.",WEAK_PASSWORD:"the password must be 8+ characters.",NOT_ON_ADMIN_LIST:"that email is not on the admin list.",BAD_EMAIL:"that email is not valid."}[d];
+    const why=known||(String(d).toLowerCase().includes("already")?"a login with that email already exists in Supabase.":
+      st?"the function answered "+esc(String(st))+": "+esc(String(raw).slice(0,160)):
+      "the function could not be reached (it is probably not deployed, or its name is not exactly create-admin-login).");
+    return msg("admMsg","Added to the admin list, but their login was NOT created: "+why+" You can create it in Supabase: Authentication > Users > Add user (tick Auto Confirm User).");
   }
   msg("admMsg","Admin added and login created. Give them the email and temporary password privately.",1);
 }
